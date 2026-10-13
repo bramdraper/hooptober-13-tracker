@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hooptober 13 Horror Challenge Tracker v67</title>
+    <title>Hooptober 13 Horror Challenge Tracker v68</title>
     <link href="https://fonts.googleapis.com/css2?family=Creepster&family=Cinzel:wght@700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -736,6 +736,7 @@
                         <label><input type="checkbox" id="chkSavini"> Tom Savini FX</label>
                         <label><input type="checkbox" id="chkBlackDir"> Black Director</label>
                         <label><input type="checkbox" id="chkRomero"> George A. Romero</label>
+                        <label><input type="checkbox" id="chkHooper"> Tobe Hooper</label>
                         <label><input type="checkbox" id="chkSamNeill"> Sam Neill</label>
                         <label><input type="checkbox" id="chkLgbtq"> LGBTQIA+</label>
                         <label><input type="checkbox" id="chkInanimate"> Inanimate Alive</label>
@@ -787,6 +788,17 @@
         `;
 
         const GREY_EYE_HTML = `<svg width="18" height="18" viewBox="0 0 24 24" style="display:block; min-width:18px; min-height:18px;"><path fill="#d0d0e0" d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>`;
+
+        const NO_POSTER_THUMB = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="60" viewBox="0 0 40 60"><rect width="40" height="60" fill="#2a2a35"/><circle cx="20" cy="30" r="9" fill="none" stroke="#e50914" stroke-width="2"/><circle cx="20" cy="30" r="2.5" fill="#e50914"/></svg>');
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
 
         const COUNTRY_FLAGS = {
             'united states of america': '🇺🇸', 'united states': '🇺🇸', 'usa': '🇺🇸', 'us': '🇺🇸',
@@ -880,6 +892,7 @@
         let activeRuleFilter = null;
         let activeQuickSearchIdx = null;
         let activeGroupMode = null;
+        let modalPendingPoster = null;
 
         function toggleGoogleSheetModal() {
             const overlay = document.getElementById('sheetModalOverlay');
@@ -969,10 +982,10 @@
                     resultsBox.style.display = 'block';
                     resultsBox.innerHTML = data.results.slice(0, 6).map(m => `
                         <div class="search-result-item" onclick="selectMovieForSlot(${m.id}, ${idx})">
-                            <img src="${m.poster_path ? 'https://image.tmdb.org/t/p/w92' + m.poster_path : 'https://via.placeholder.com/40x60'}" />
+                            <img src="${m.poster_path ? 'https://image.tmdb.org/t/p/w92' + m.poster_path : NO_POSTER_THUMB}" />
                             <div>
-                                <div style="font-weight:bold; color:#fff;">${m.title} (${m.release_date ? m.release_date.split('-')[0] : 'N/A'})</div>
-                                <div style="font-size:0.75rem; color:#8e8e9e;">${m.overview ? m.overview.substring(0, 60) + '...' : 'Select film'}</div>
+                                <div style="font-weight:bold; color:#fff;">${escapeHtml(m.title)} (${m.release_date ? m.release_date.split('-')[0] : 'N/A'})</div>
+                                <div style="font-size:0.75rem; color:#8e8e9e;">${m.overview ? escapeHtml(m.overview.substring(0, 60)) + '...' : 'Select film'}</div>
                             </div>
                         </div>
                     `).join('');
@@ -1104,7 +1117,7 @@
 
         function editApiKey() {
             const currentKey = localStorage.getItem('hoop13_tmdb_key') || '';
-            document.getElementById('apiConfigContainer').innerHTML = `<input type="password" id="tmdbKeyInput" value="${currentKey}"><button style="padding:4px 8px; font-size:0.75rem;" onclick="saveApiKey()">Save</button><button class="btn-secondary" style="padding:4px 8px; font-size:0.75rem;" onclick="renderApiConfig()">Cancel</button>`;
+            document.getElementById('apiConfigContainer').innerHTML = `<input type="password" id="tmdbKeyInput" value="${escapeHtml(currentKey)}"><button style="padding:4px 8px; font-size:0.75rem;" onclick="saveApiKey()">Save</button><button class="btn-secondary" style="padding:4px 8px; font-size:0.75rem;" onclick="renderApiConfig()">Cancel</button>`;
         }
 
         async function syncMissingPosters() {
@@ -1212,22 +1225,23 @@
         }
 
         function renderSingleCard(s, realIdx, isGrouped = false) {
+            const safeTitle = escapeHtml(s.title);
             const yearStr = s.year ? `<span class="year-paren">(${s.year})</span>` : '';
             
             const titleLink = s.title 
                 ? (s.tmdbId 
-                    ? `<a href="https://www.themoviedb.org/movie/${s.tmdbId}" target="_blank" rel="noopener">${s.title}</a>${yearStr}`
-                    : `${s.title}${yearStr}`)
+                    ? `<a href="https://www.themoviedb.org/movie/${encodeURIComponent(s.tmdbId)}" target="_blank" rel="noopener">${safeTitle}</a>${yearStr}`
+                    : `${safeTitle}${yearStr}`)
                 : `<span class="empty-slot-trigger" onclick="openQuickSearch(event, ${realIdx})" title="Click to search movie">Add Movie</span>`;
 
             const appliedCats = getMovieCategories(s);
             const tooltipHtml = appliedCats.length > 0 ? `
                 <div class="poster-tooltip">
-                    <div class="tooltip-header">${s.title}</div>
+                    <div class="tooltip-header">${safeTitle}</div>
                     <ul class="tooltip-list">
                         ${appliedCats.map(c => `
                             <li class="tooltip-item">
-                                <span class="tooltip-item-left">${c.label}</span>
+                                <span class="tooltip-item-left">${escapeHtml(c.label)}</span>
                                 ${c.isComplete ? `<span class="tooltip-item-check" title="Category completed!">✓</span>` : ''}
                             </li>
                         `).join('')}
@@ -1282,8 +1296,8 @@
                         </div>
                         ${s.title ? `
                             <div class="slot-meta-stacked">
-                                <div class="slot-meta-row">${normCountry ? getCountryFlag(normCountry) + ' ' + normCountry : 'Country N/A'}</div>
-                                <div class="slot-meta-row">${s.director ? 'Dir: ' + s.director : 'Director N/A'}</div>
+                                <div class="slot-meta-row">${normCountry ? getCountryFlag(normCountry) + ' ' + escapeHtml(normCountry) : 'Country N/A'}</div>
+                                <div class="slot-meta-row">${s.director ? 'Dir: ' + escapeHtml(s.director) : 'Director N/A'}</div>
                             </div>
                         ` : ''}
                     </div>
@@ -1375,7 +1389,7 @@
                 const listItemsHtml = hasMoviesInGrid 
                     ? moviesInDecade.map(m => `
                         <li class="badge-tooltip-item ${m.status === 'Watched' ? 'watched-item' : 'planned-item'}">
-                            ${m.title}
+                            ${escapeHtml(m.title)}
                         </li>
                     `).join('')
                     : `<li class="badge-tooltip-item empty-item">No movies planned</li>`;
@@ -1408,18 +1422,18 @@
 
                     const tooltipContent = `
                         <div class="badge-tooltip ${isMultiCol ? 'multi-column' : ''}">
-                            <div class="badge-tooltip-header">${c} Movies</div>
+                            <div class="badge-tooltip-header">${escapeHtml(c)} Movies</div>
                             <ul class="badge-tooltip-list ${isMultiCol ? 'grid-columns' : ''}">
                                 ${moviesInCountry.map(m => `
                                     <li class="badge-tooltip-item ${m.status === 'Watched' ? 'watched-item' : 'planned-item'}">
-                                        ${m.title}
+                                        ${escapeHtml(m.title)}
                                     </li>
                                 `).join('')}
                             </ul>
                         </div>
                     `;
                     return `<span class="metric-badge ${isCountryWatched ? 'watched-country' : 'planned-country'}">
-                        ${getCountryFlag(c)} ${c}
+                        ${getCountryFlag(c)} ${escapeHtml(c)}
                         ${tooltipContent}
                     </span>`;
                 }).join('') 
@@ -1479,7 +1493,7 @@
                             <div class="slot-demarcation">
                                 <div class="slot-demarcation-line"></div>
                                 <span class="slot-demarcation-label">
-                                    ${getCountryFlag(c)} ${c}
+                                    ${getCountryFlag(c)} ${escapeHtml(c)}
                                     ${isCountryFulfilled ? `<span class="header-check" title="Country fulfilled!">✓</span>` : ''}
                                 </span>
                                 <div class="slot-demarcation-line"></div>
@@ -1703,10 +1717,10 @@
                     resultsBox.style.display = 'block';
                     resultsBox.innerHTML = data.results.slice(0, 8).map(m => `
                         <div class="search-result-item" onclick="selectMovie(${m.id})">
-                            <img src="${m.poster_path ? 'https://image.tmdb.org/t/p/w92' + m.poster_path : 'https://via.placeholder.com/40x60'}" />
+                            <img src="${m.poster_path ? 'https://image.tmdb.org/t/p/w92' + m.poster_path : NO_POSTER_THUMB}" />
                             <div>
-                                <div style="font-weight:bold; color:#fff;">${m.title} (${m.release_date ? m.release_date.split('-')[0] : 'N/A'})</div>
-                                <div style="font-size:0.75rem; color:#8e8e9e;">${m.overview ? m.overview.substring(0, 80) + '...' : 'Select film'}</div>
+                                <div style="font-weight:bold; color:#fff;">${escapeHtml(m.title)} (${m.release_date ? m.release_date.split('-')[0] : 'N/A'})</div>
+                                <div style="font-size:0.75rem; color:#8e8e9e;">${m.overview ? escapeHtml(m.overview.substring(0, 80)) + '...' : 'Select film'}</div>
                             </div>
                         </div>
                     `).join('');
@@ -1777,10 +1791,10 @@
                     resultsBox.style.display = 'block';
                     resultsBox.innerHTML = data.results.slice(0, 8).map(m => `
                         <div class="search-result-item" onclick="selectModalMovie(${m.id})">
-                            <img src="${m.poster_path ? 'https://image.tmdb.org/t/p/w92' + m.poster_path : 'https://via.placeholder.com/40x60'}" />
+                            <img src="${m.poster_path ? 'https://image.tmdb.org/t/p/w92' + m.poster_path : NO_POSTER_THUMB}" />
                             <div>
-                                <div style="font-weight:bold; color:#fff;">${m.title} (${m.release_date ? m.release_date.split('-')[0] : 'N/A'})</div>
-                                <div style="font-size:0.75rem; color:#8e8e9e;">${m.overview ? m.overview.substring(0, 80) + '...' : 'Select film'}</div>
+                                <div style="font-weight:bold; color:#fff;">${escapeHtml(m.title)} (${m.release_date ? m.release_date.split('-')[0] : 'N/A'})</div>
+                                <div style="font-size:0.75rem; color:#8e8e9e;">${m.overview ? escapeHtml(m.overview.substring(0, 80)) + '...' : 'Select film'}</div>
                             </div>
                         </div>
                     `).join('');
@@ -1813,9 +1827,7 @@
                 document.getElementById('mDirector').value = directorObj ? directorObj.name : '';
                 document.getElementById('mTmdbId').value = data.id;
 
-                if (!isNaN(currentIdx) && slots[currentIdx]) {
-                    slots[currentIdx].poster = data.poster_path ? `https://image.tmdb.org/t/p/w185${data.poster_path}` : '';
-                }
+                modalPendingPoster = data.poster_path ? `https://image.tmdb.org/t/p/w185${data.poster_path}` : '';
             } catch (e) { console.error(e); }
         }
 
@@ -1859,36 +1871,54 @@
             }
         }
 
-        function parseCsvRow(rowText) {
-            const cells = [];
-            let current = '';
+        function parseCsv(csvText) {
+            const text = String(csvText || '').replace(/^\uFEFF/, '');
+            const rows = [];
+            let row = [];
+            let cell = '';
             let inQuotes = false;
-            for (let i = 0; i < rowText.length; i++) {
-                const char = rowText[i];
-                if (char === '"') {
-                    inQuotes = !inQuotes;
-                } else if (char === ',' && !inQuotes) {
-                    cells.push(current.trim().replace(/^["']|["']$/g, ''));
-                    current = '';
+            for (let i = 0; i < text.length; i++) {
+                const ch = text[i];
+                if (inQuotes) {
+                    if (ch === '"') {
+                        if (text[i + 1] === '"') { cell += '"'; i++; }
+                        else { inQuotes = false; }
+                    } else {
+                        cell += ch;
+                    }
+                } else if (ch === '"') {
+                    inQuotes = true;
+                } else if (ch === ',') {
+                    row.push(cell.trim());
+                    cell = '';
+                } else if (ch === '\n' || ch === '\r') {
+                    if (ch === '\r' && text[i + 1] === '\n') i++;
+                    row.push(cell.trim());
+                    rows.push(row);
+                    row = [];
+                    cell = '';
                 } else {
-                    current += char;
+                    cell += ch;
                 }
             }
-            cells.push(current.trim().replace(/^["']|["']$/g, ''));
-            return cells;
+            if (cell !== '' || row.length > 0) {
+                row.push(cell.trim());
+                rows.push(row);
+            }
+            return rows.filter(r => r.some(c => c !== ''));
         }
 
         function parseAndImportCsvData(csvText) {
-            const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '');
-            if (lines.length === 0) return;
+            const rows = parseCsv(csvText);
+            if (rows.length === 0) return;
 
-            const firstLine = lines[0].toLowerCase();
+            const firstLine = rows[0].join(',').toLowerCase();
             const isFullExport = firstLine.includes('slot') && firstLine.includes('title');
 
             if (isFullExport) {
                 let restoredCount = 0;
-                for (let i = 1; i < lines.length; i++) {
-                    const row = parseCsvRow(lines[i]);
+                for (let i = 1; i < rows.length; i++) {
+                    const row = rows[i];
                     if (row.length < 2) continue;
 
                     const slotIdx = parseInt(row[0], 10) - 1;
@@ -1943,11 +1973,9 @@
         }
 
         function parseCsvTitles(csvText) {
-            const lines = csvText.split(/\r?\n/);
             const titles = new Set();
 
-            lines.forEach(line => {
-                const cells = parseCsvRow(line);
+            parseCsv(csvText).forEach(cells => {
                 cells.forEach(cell => {
                     if (cell && cell.length > 2 && !cell.toLowerCase().includes('category') && !cell.toLowerCase().includes('movie')) {
                         if (!cell.toLowerCase().includes('there must be') && !cell.toLowerCase().includes('unique countries')) {
@@ -2047,6 +2075,7 @@
 
         function openModal(idx) {
             closeQuickSearch();
+            modalPendingPoster = null;
             const s = slots[idx];
             document.getElementById('editSlotIndex').value = idx;
             document.getElementById('mTitle').value = s.title || '';
@@ -2071,6 +2100,7 @@
             document.getElementById('chkSavini').checked = t.includes('Tom Savini FX');
             document.getElementById('chkBlackDir').checked = t.includes('Black Director');
             document.getElementById('chkRomero').checked = t.includes('George A. Romero');
+            document.getElementById('chkHooper').checked = t.includes('Tobe Hooper');
             document.getElementById('chkSamNeill').checked = t.includes('Sam Neill');
             document.getElementById('chkLgbtq').checked = t.includes('LGBTQIA+') || t.includes('LGBTQ+');
             document.getElementById('chkInanimate').checked = t.includes('Inanimate Object Alive');
@@ -2122,6 +2152,7 @@
             if (document.getElementById('chkSavini').checked) tags.push('Tom Savini FX');
             if (document.getElementById('chkBlackDir').checked) tags.push('Black Director');
             if (document.getElementById('chkRomero').checked) tags.push('George A. Romero');
+            if (document.getElementById('chkHooper').checked) tags.push('Tobe Hooper');
             if (document.getElementById('chkSamNeill').checked) tags.push('Sam Neill');
             if (document.getElementById('chkLgbtq').checked) tags.push('LGBTQIA+');
             if (document.getElementById('chkInanimate').checked) tags.push('Inanimate Object Alive');
@@ -2136,6 +2167,15 @@
             if (document.getElementById('chk1981').checked) tags.push('1981 Film');
             if (document.getElementById('chkCrush').checked) tags.push('Childhood Crush');
 
+            const prevSlot = slots[idx];
+            let posterVal = prevSlot.poster;
+            if (modalPendingPoster !== null) {
+                posterVal = modalPendingPoster;
+            } else if (String(prevSlot.tmdbId || '') !== tmdbIdVal) {
+                posterVal = '';
+            }
+            modalPendingPoster = null;
+
             slots[idx] = {
                 ...slots[idx],
                 title: titleVal,
@@ -2143,6 +2183,7 @@
                 country: normalizeCountryName(document.getElementById('mCountry').value),
                 director: document.getElementById('mDirector').value,
                 tmdbId: tmdbIdVal,
+                poster: posterVal,
                 status: document.getElementById('mStatus').value,
                 viewingDate: document.getElementById('mViewingDate').value,
                 notes: document.getElementById('mNotes').value,
@@ -2155,6 +2196,7 @@
             } else {
                 saveState();
             }
+            if (!posterVal && tmdbIdVal) syncMissingPosters();
         }
 
         function clearSlot(idx) {
@@ -2190,16 +2232,17 @@
         }
 
         function exportCSV() {
+            const csvCell = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
             let csv = "Slot,Title,Year,Country,Director,TMDB_ID,Status,ViewingDate,Notes,Tags\n";
-            slots.forEach(s => { 
+            slots.forEach(s => {
                 const joinedTags = (s.tags && s.tags.length > 0) ? s.tags.join('|') : '';
-                csv += `"${s.id}","${s.title}","${s.year}","${normalizeCountryName(s.country)}","${s.director}","${s.tmdbId || ''}","${s.status}","${s.viewingDate || ''}","${s.notes}","${joinedTags}"\n`; 
+                csv += [s.id, s.title, s.year, normalizeCountryName(s.country), s.director, s.tmdbId || '', s.status, s.viewingDate || '', s.notes, joinedTags].map(csvCell).join(',') + '\n';
             });
             const blob = new Blob([csv], { type: 'text/csv' });
             const url = window.URL.createObjectURL(blob);
             const link = document.getElementById('downloadLink') || document.createElement('a');
             link.setAttribute('href', url);
-            link.setAttribute('download', 'hooptober_13_progress_tracker_v67.csv');
+            link.setAttribute('download', 'hooptober_13_progress_tracker_v68.csv');
             link.click();
         }
 
