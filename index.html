@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hooptober 13 Horror Challenge Tracker v66</title>
+    <title>Hooptober 13 Horror Challenge Tracker v67</title>
     <link href="https://fonts.googleapis.com/css2?family=Creepster&family=Cinzel:wght@700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -1098,12 +1098,36 @@
             if (input && input.value.trim()) {
                 localStorage.setItem('hoop13_tmdb_key', input.value.trim());
                 renderApiConfig();
+                syncMissingPosters();
             }
         }
 
         function editApiKey() {
             const currentKey = localStorage.getItem('hoop13_tmdb_key') || '';
             document.getElementById('apiConfigContainer').innerHTML = `<input type="password" id="tmdbKeyInput" value="${currentKey}"><button style="padding:4px 8px; font-size:0.75rem;" onclick="saveApiKey()">Save</button><button class="btn-secondary" style="padding:4px 8px; font-size:0.75rem;" onclick="renderApiConfig()">Cancel</button>`;
+        }
+
+        async function syncMissingPosters() {
+            const apiKey = localStorage.getItem('hoop13_tmdb_key');
+            if (!apiKey) return;
+
+            let updated = false;
+            for (let i = 0; i < slots.length; i++) {
+                const s = slots[i];
+                if (s.tmdbId && (!s.poster || s.poster.endsWith('/'))) {
+                    try {
+                        const res = await fetch(`https://api.themoviedb.org/3/movie/${s.tmdbId}?api_key=${apiKey}`);
+                        const data = await res.json();
+                        if (data && data.poster_path) {
+                            s.poster = `https://image.tmdb.org/t/p/w185${data.poster_path}`;
+                            updated = true;
+                        }
+                    } catch (e) { console.error('Error auto-syncing poster for TMDb ID:', s.tmdbId, e); }
+                }
+            }
+            if (updated) {
+                saveState();
+            }
         }
 
         function getMovieCategories(slot) {
@@ -1211,7 +1235,7 @@
                 </div>
             ` : '';
 
-            const posterHtml = s.poster 
+            const posterHtml = (s.poster && s.poster !== 'https://image.tmdb.org/t/p/w185/')
                 ? `<img class="slot-poster" src="${s.poster}" alt="Poster">`
                 : SPOOKY_REEL_SVG;
 
@@ -1878,6 +1902,8 @@
                     const status = row[6] || 'Planned';
                     const viewingDate = row[7] || '';
                     const notes = row[8] || '';
+                    const tagsRaw = row[9] || '';
+                    const parsedTags = tagsRaw ? tagsRaw.split('|').map(t => t.trim()).filter(Boolean) : [];
 
                     const slotObj = {
                         id: (isNaN(slotIdx) || slotIdx < 0) ? (restoredCount + 1) : (slotIdx + 1),
@@ -1885,12 +1911,12 @@
                         year: year,
                         country: country,
                         director: director,
-                        poster: tmdbId ? `https://image.tmdb.org/t/p/w185/` : '',
+                        poster: '',
                         tmdbId: tmdbId,
                         status: status,
                         viewingDate: viewingDate,
                         notes: notes,
-                        tags: []
+                        tags: parsedTags
                     };
 
                     const targetPos = (isNaN(slotIdx) || slotIdx < 0 || slotIdx >= 100) ? restoredCount : slotIdx;
@@ -1902,6 +1928,8 @@
                     slots[targetPos] = slotObj;
                     restoredCount++;
                 }
+
+                syncMissingPosters();
 
                 if (isLockedByDate) {
                     applyDateSorting();
@@ -2162,13 +2190,16 @@
         }
 
         function exportCSV() {
-            let csv = "Slot,Title,Year,Country,Director,TMDB_ID,Status,ViewingDate,Notes\n";
-            slots.forEach(s => { csv += `"${s.id}","${s.title}","${s.year}","${normalizeCountryName(s.country)}","${s.director}","${s.tmdbId || ''}","${s.status}","${s.viewingDate || ''}","${s.notes}"\n`; });
+            let csv = "Slot,Title,Year,Country,Director,TMDB_ID,Status,ViewingDate,Notes,Tags\n";
+            slots.forEach(s => { 
+                const joinedTags = (s.tags && s.tags.length > 0) ? s.tags.join('|') : '';
+                csv += `"${s.id}","${s.title}","${s.year}","${normalizeCountryName(s.country)}","${s.director}","${s.tmdbId || ''}","${s.status}","${s.viewingDate || ''}","${s.notes}","${joinedTags}"\n`; 
+            });
             const blob = new Blob([csv], { type: 'text/csv' });
             const url = window.URL.createObjectURL(blob);
             const link = document.getElementById('downloadLink') || document.createElement('a');
             link.setAttribute('href', url);
-            link.setAttribute('download', 'hooptober_13_progress_tracker_v66.csv');
+            link.setAttribute('download', 'hooptober_13_progress_tracker_v67.csv');
             link.click();
         }
 
@@ -2178,6 +2209,7 @@
         } else {
             saveState();
         }
+        syncMissingPosters();
     </script>
 </body>
 </html>
