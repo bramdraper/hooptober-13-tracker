@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hooptober 13 Horror Challenge Tracker v69</title>
+    <title>Hooptober 13 Horror Challenge Tracker v70</title>
     <link href="https://fonts.googleapis.com/css2?family=Creepster&family=Cinzel:wght@700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -966,7 +966,7 @@
             const inp = document.getElementById(`quickInput_${idx}`);
             if (!inp) return;
             const query = inp.value.trim();
-            const apiKey = localStorage.getItem('hoop13_tmdb_key');
+            const apiKey = getTmdbAccess();
             const resultsBox = document.getElementById(`quickResults_${idx}`);
 
             if (!query || !apiKey || !resultsBox) { 
@@ -982,7 +982,7 @@
             }
 
             try {
-                const res = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${apiKey}&query=${encodeURIComponent(query)}&include_adult=false`);
+                const res = await fetch(`${tmdbApiBase()}/3/search/movie?${tmdbKeyParam()}query=${encodeURIComponent(query)}&include_adult=false`);
                 const data = await res.json();
                 if (data.results && data.results.length > 0) {
                     resultsBox.style.display = 'block';
@@ -1000,11 +1000,11 @@
         }
 
         async function selectMovieForSlot(tmdbId, targetIdx) {
-            const apiKey = localStorage.getItem('hoop13_tmdb_key');
+            const apiKey = getTmdbAccess();
             closeQuickSearch();
 
             try {
-                const res = await fetch(`https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${apiKey}&append_to_response=credits`);
+                const res = await fetch(`${tmdbApiBase()}/3/movie/${tmdbId}?${tmdbKeyParam()}append_to_response=credits`);
                 const data = await res.json();
                 if (!data || !data.title) { alert("Could not find movie on TMDb for ID: " + tmdbId); return; }
 
@@ -1102,10 +1102,37 @@
             return match ? match[1] : null;
         }
 
+        const TMDB_PROXY_URL = 'https://hooptober-tmdb.bram-draper.workers.dev';
+        const PROXY_HOSTS = ['bramdraper.github.io'];
+
+        function getSavedTmdbKey() {
+            try { return localStorage.getItem('hoop13_tmdb_key') || ''; } catch (e) { return ''; }
+        }
+
+        function isProxyAvailable() {
+            return location.protocol === 'https:' && PROXY_HOSTS.includes(location.hostname);
+        }
+
+        // Truthy when TMDb lookups can run: a saved key, or the hosted site's proxy
+        function getTmdbAccess() {
+            return getSavedTmdbKey() || (isProxyAvailable() ? 'proxy' : '');
+        }
+
+        function tmdbApiBase() {
+            return getSavedTmdbKey() ? 'https://api.themoviedb.org' : TMDB_PROXY_URL;
+        }
+
+        function tmdbKeyParam() {
+            const key = getSavedTmdbKey();
+            return key ? `api_key=${encodeURIComponent(key)}&` : '';
+        }
+
         function renderApiConfig() {
-            const key = localStorage.getItem('hoop13_tmdb_key');
+            const key = getSavedTmdbKey();
             const container = document.getElementById('apiConfigContainer');
-            if (key) {
+            if (!key && isProxyAvailable()) {
+                container.innerHTML = `<div class="api-status-badge" title="TMDb lookups run through the tracker's proxy. No key needed.">✓ TMDb</div>`;
+            } else if (key) {
                 container.innerHTML = `<div class="api-status-badge">✓ TMDb</div><button class="btn-secondary" style="padding:2px 6px; font-size:0.75rem;" onclick="editApiKey()">Edit</button>`;
             } else {
                 container.innerHTML = `<input type="password" id="tmdbKeyInput" placeholder="TMDb API Key..."><button style="padding:4px 8px; font-size:0.75rem;" onclick="saveApiKey()">Save</button>`;
@@ -1136,7 +1163,7 @@
 
         async function repairMissingIds() {
             if (isRepairingIds) return;
-            const apiKey = localStorage.getItem('hoop13_tmdb_key');
+            const apiKey = getTmdbAccess();
             if (!apiKey) { alert('Add your TMDb API key first, then try again.'); return; }
 
             const targets = slots.filter(s => s.title && !s.tmdbId);
@@ -1153,7 +1180,7 @@
 
             for (const s of targets) {
                 try {
-                    const res = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${apiKey}&query=${encodeURIComponent(s.title)}&include_adult=false`);
+                    const res = await fetch(`${tmdbApiBase()}/3/search/movie?${tmdbKeyParam()}query=${encodeURIComponent(s.title)}&include_adult=false`);
                     const data = await res.json();
                     const results = (data && data.results) || [];
                     const posterFile = getPosterFile(s.poster);
@@ -1197,7 +1224,7 @@
         }
 
         async function syncMissingPosters() {
-            const apiKey = localStorage.getItem('hoop13_tmdb_key');
+            const apiKey = getTmdbAccess();
             if (!apiKey) return;
 
             let updated = false;
@@ -1205,7 +1232,7 @@
                 const s = slots[i];
                 if (s.tmdbId && (!s.poster || s.poster.endsWith('/'))) {
                     try {
-                        const res = await fetch(`https://api.themoviedb.org/3/movie/${s.tmdbId}?api_key=${apiKey}`);
+                        const res = await fetch(`${tmdbApiBase()}/3/movie/${s.tmdbId}?${tmdbKeyParam()}`);
                         const data = await res.json();
                         if (data && data.poster_path) {
                             s.poster = `https://image.tmdb.org/t/p/w185${data.poster_path}`;
@@ -1774,7 +1801,7 @@
 
         async function performSearch() {
             const query = document.getElementById('searchInput').value.trim();
-            const apiKey = localStorage.getItem('hoop13_tmdb_key');
+            const apiKey = getTmdbAccess();
             const resultsBox = document.getElementById('searchResults');
 
             if (!query || !apiKey) { resultsBox.style.display = 'none'; return; }
@@ -1787,7 +1814,7 @@
             }
 
             try {
-                const res = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${apiKey}&query=${encodeURIComponent(query)}&include_adult=false`);
+                const res = await fetch(`${tmdbApiBase()}/3/search/movie?${tmdbKeyParam()}query=${encodeURIComponent(query)}&include_adult=false`);
                 const data = await res.json();
                 if (data.results && data.results.length > 0) {
                     resultsBox.style.display = 'block';
@@ -1805,12 +1832,12 @@
         }
 
         async function selectMovie(tmdbId) {
-            const apiKey = localStorage.getItem('hoop13_tmdb_key');
+            const apiKey = getTmdbAccess();
             document.getElementById('searchResults').style.display = 'none';
             document.getElementById('searchInput').value = '';
 
             try {
-                const res = await fetch(`https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${apiKey}&append_to_response=credits`);
+                const res = await fetch(`${tmdbApiBase()}/3/movie/${tmdbId}?${tmdbKeyParam()}append_to_response=credits`);
                 const data = await res.json();
                 if (!data || !data.title) { alert("Could not find movie on TMDb for ID: " + tmdbId); return; }
 
@@ -1855,13 +1882,13 @@
 
         async function performModalSearch() {
             const query = document.getElementById('mTitle').value.trim();
-            const apiKey = localStorage.getItem('hoop13_tmdb_key');
+            const apiKey = getTmdbAccess();
             const resultsBox = document.getElementById('modalSearchResults');
 
             if (!query || !apiKey) { resultsBox.style.display = 'none'; return; }
 
             try {
-                const res = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${apiKey}&query=${encodeURIComponent(query)}&include_adult=false`);
+                const res = await fetch(`${tmdbApiBase()}/3/search/movie?${tmdbKeyParam()}query=${encodeURIComponent(query)}&include_adult=false`);
                 const data = await res.json();
                 if (data.results && data.results.length > 0) {
                     resultsBox.style.display = 'block';
@@ -1879,11 +1906,11 @@
         }
 
         async function selectModalMovie(tmdbId) {
-            const apiKey = localStorage.getItem('hoop13_tmdb_key');
+            const apiKey = getTmdbAccess();
             document.getElementById('modalSearchResults').style.display = 'none';
 
             try {
-                const res = await fetch(`https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${apiKey}&append_to_response=credits`);
+                const res = await fetch(`${tmdbApiBase()}/3/movie/${tmdbId}?${tmdbKeyParam()}append_to_response=credits`);
                 const data = await res.json();
                 if (!data || !data.title) return;
 
@@ -2069,7 +2096,7 @@
 
         async function processImportedMovieTitles(titleList) {
             const existingTitles = new Set(slots.map(s => s.title ? s.title.toLowerCase().trim() : ''));
-            const apiKey = localStorage.getItem('hoop13_tmdb_key');
+            const apiKey = getTmdbAccess();
             let addedCount = 0;
 
             for (const rawTitle of titleList) {
@@ -2078,7 +2105,7 @@
 
                 if (apiKey) {
                     try {
-                        const searchRes = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${apiKey}&query=${encodeURIComponent(cleanTitle)}&include_adult=false`);
+                        const searchRes = await fetch(`${tmdbApiBase()}/3/search/movie?${tmdbKeyParam()}query=${encodeURIComponent(cleanTitle)}&include_adult=false`);
                         const searchData = await searchRes.json();
 
                         if (searchData.results && searchData.results.length > 0) {
@@ -2094,7 +2121,7 @@
                                 targetIdx = slots.length - 1;
                             }
 
-                            const detailRes = await fetch(`https://api.themoviedb.org/3/movie/${m.id}?api_key=${apiKey}&append_to_response=credits`);
+                            const detailRes = await fetch(`${tmdbApiBase()}/3/movie/${m.id}?${tmdbKeyParam()}append_to_response=credits`);
                             const detailData = await detailRes.json();
 
                             const directorObj = detailData.credits && detailData.credits.crew ? detailData.credits.crew.find(c => c.job === 'Director') : null;
@@ -2320,7 +2347,7 @@
             const url = window.URL.createObjectURL(blob);
             const link = document.getElementById('downloadLink') || document.createElement('a');
             link.setAttribute('href', url);
-            link.setAttribute('download', 'hooptober_13_progress_tracker_v69.csv');
+            link.setAttribute('download', 'hooptober_13_progress_tracker_v70.csv');
             link.click();
         }
 
