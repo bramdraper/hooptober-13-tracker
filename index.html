@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hooptober 13 Horror Challenge Tracker v68</title>
+    <title>Hooptober 13 Horror Challenge Tracker v69</title>
     <link href="https://fonts.googleapis.com/css2?family=Creepster&family=Cinzel:wght@700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -554,6 +554,12 @@
             <div style="position:relative;">
                 <button class="tool-icon-btn" onclick="toggleGoogleSheetModal()" title="Import Data / CSV / Sheets">
                     📊
+                </button>
+            </div>
+
+            <div style="position:relative;">
+                <button class="tool-icon-btn" id="repairIdsBtn" onclick="repairMissingIds()" title="Repair missing TMDb IDs">
+                    🔧
                 </button>
             </div>
 
@@ -1118,6 +1124,76 @@
         function editApiKey() {
             const currentKey = localStorage.getItem('hoop13_tmdb_key') || '';
             document.getElementById('apiConfigContainer').innerHTML = `<input type="password" id="tmdbKeyInput" value="${escapeHtml(currentKey)}"><button style="padding:4px 8px; font-size:0.75rem;" onclick="saveApiKey()">Save</button><button class="btn-secondary" style="padding:4px 8px; font-size:0.75rem;" onclick="renderApiConfig()">Cancel</button>`;
+        }
+
+        function getPosterFile(posterUrl) {
+            if (!posterUrl) return '';
+            const file = String(posterUrl).split('?')[0].split('/').pop();
+            return file && file.includes('.') ? '/' + file : '';
+        }
+
+        let isRepairingIds = false;
+
+        async function repairMissingIds() {
+            if (isRepairingIds) return;
+            const apiKey = localStorage.getItem('hoop13_tmdb_key');
+            if (!apiKey) { alert('Add your TMDb API key first, then try again.'); return; }
+
+            const targets = slots.filter(s => s.title && !s.tmdbId);
+            if (targets.length === 0) { alert('Every film already has a TMDb ID. Nothing to repair.'); return; }
+            if (!confirm(`Look up TMDb IDs for ${targets.length} film(s) missing one?\n\nTip: export a CSV first as a backup.`)) return;
+
+            isRepairingIds = true;
+            const btn = document.getElementById('repairIdsBtn');
+            if (btn) { btn.textContent = '⏳'; btn.disabled = true; }
+
+            let exactCount = 0;
+            const uncertain = [];
+            const failed = [];
+
+            for (const s of targets) {
+                try {
+                    const res = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${apiKey}&query=${encodeURIComponent(s.title)}&include_adult=false`);
+                    const data = await res.json();
+                    const results = (data && data.results) || [];
+                    const posterFile = getPosterFile(s.poster);
+                    const resultYear = r => r.release_date ? parseInt(r.release_date.split('-')[0], 10) : null;
+
+                    let match = posterFile ? results.find(r => r.poster_path && r.poster_path === posterFile) : null;
+                    let isExact = !!match;
+                    if (!match && results.length > 0) {
+                        match = (s.year ? results.find(r => resultYear(r) === parseInt(s.year, 10)) : null) || results[0];
+                    }
+
+                    if (!match) { failed.push(`${s.title}: no TMDb results`); continue; }
+
+                    const usedElsewhere = slots.find(o => o !== s && o.tmdbId && String(o.tmdbId) === String(match.id));
+                    if (usedElsewhere) { failed.push(`${s.title}: best match is already in slot #${usedElsewhere.id}`); continue; }
+
+                    s.tmdbId = match.id;
+                    if (!s.poster && match.poster_path) s.poster = `https://image.tmdb.org/t/p/w185${match.poster_path}`;
+
+                    if (isExact) {
+                        exactCount++;
+                    } else {
+                        const y = resultYear(match);
+                        uncertain.push(`${s.title} → ${match.title}${y ? ` (${y})` : ''}`);
+                    }
+                } catch (e) {
+                    console.error('Repair lookup failed for', s.title, e);
+                    failed.push(`${s.title}: lookup error`);
+                }
+            }
+
+            isRepairingIds = false;
+            if (btn) { btn.textContent = '🔧'; btn.disabled = false; }
+            saveState();
+
+            let msg = `Repaired ${exactCount + uncertain.length} of ${targets.length}.\n${exactCount} matched exactly by poster.`;
+            if (uncertain.length) msg += `\n\nMatched by title/year. Please double-check these:\n- ${uncertain.join('\n- ')}`;
+            if (failed.length) msg += `\n\nNot repaired:\n- ${failed.join('\n- ')}`;
+            msg += `\n\nExport a fresh CSV to keep these IDs.`;
+            alert(msg);
         }
 
         async function syncMissingPosters() {
@@ -1933,6 +2009,8 @@
                     const viewingDate = row[7] || '';
                     const notes = row[8] || '';
                     const tagsRaw = row[9] || '';
+                    const posterRaw = row[10] || '';
+                    const poster = /^https:\/\/image\.tmdb\.org\//.test(posterRaw) ? posterRaw : '';
                     const parsedTags = tagsRaw ? tagsRaw.split('|').map(t => t.trim()).filter(Boolean) : [];
 
                     const slotObj = {
@@ -1941,7 +2019,7 @@
                         year: year,
                         country: country,
                         director: director,
-                        poster: '',
+                        poster: poster,
                         tmdbId: tmdbId,
                         status: status,
                         viewingDate: viewingDate,
@@ -2233,16 +2311,16 @@
 
         function exportCSV() {
             const csvCell = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
-            let csv = "Slot,Title,Year,Country,Director,TMDB_ID,Status,ViewingDate,Notes,Tags\n";
+            let csv = "Slot,Title,Year,Country,Director,TMDB_ID,Status,ViewingDate,Notes,Tags,Poster\n";
             slots.forEach(s => {
                 const joinedTags = (s.tags && s.tags.length > 0) ? s.tags.join('|') : '';
-                csv += [s.id, s.title, s.year, normalizeCountryName(s.country), s.director, s.tmdbId || '', s.status, s.viewingDate || '', s.notes, joinedTags].map(csvCell).join(',') + '\n';
+                csv += [s.id, s.title, s.year, normalizeCountryName(s.country), s.director, s.tmdbId || '', s.status, s.viewingDate || '', s.notes, joinedTags, s.poster || ''].map(csvCell).join(',') + '\n';
             });
             const blob = new Blob([csv], { type: 'text/csv' });
             const url = window.URL.createObjectURL(blob);
             const link = document.getElementById('downloadLink') || document.createElement('a');
             link.setAttribute('href', url);
-            link.setAttribute('download', 'hooptober_13_progress_tracker_v68.csv');
+            link.setAttribute('download', 'hooptober_13_progress_tracker_v69.csv');
             link.click();
         }
 
