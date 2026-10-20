@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hooptober 13 Horror Challenge Tracker v70</title>
+    <title>Hooptober 13 Horror Challenge Tracker v71</title>
     <link href="https://fonts.googleapis.com/css2?family=Creepster&family=Cinzel:wght@700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -510,6 +510,15 @@
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 2000000; align-items: center; justify-content: center; padding: 16px; }
         .modal-overlay.active { display: flex; }
         .modal { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; width: 100%; max-width: 900px; padding: 24px; max-height: 94vh; overflow: visible; position: relative; }
+        .sync-wrap { display: flex; align-items: center; gap: 6px; }
+        .sync-status { font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; }
+        .sync-status.ok { color: var(--success-green); }
+        .sync-status.warn { color: #f5b041; }
+        .sync-status.err { color: var(--accent-red-hover); }
+        .sync-code-box { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 1.05rem; letter-spacing: 1px; background: #000; border: 1px solid var(--border-color); border-radius: 6px; padding: 10px 12px; color: #fff; text-align: center; user-select: all; word-break: break-all; }
+        .sync-modal-text { font-size: 0.85rem; color: var(--text-muted); line-height: 1.45; margin-bottom: 12px; }
+        .sync-modal-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+        .sync-code-input { width: 100%; background: #000; border: 1px solid var(--border-color); color: #fff; padding: 10px 12px; border-radius: 6px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.95rem; text-transform: uppercase; }
         .modal-close-btn { position: absolute; top: 12px; right: 16px; background: transparent; border: none; color: var(--text-muted); font-size: 1.4rem; font-weight: bold; cursor: pointer; padding: 0; line-height: 1; }
         .modal-close-btn:hover { color: var(--text-main); background: transparent; }
         .form-group { margin-bottom: 10px; }
@@ -551,6 +560,13 @@
         <div class="top-right-tools">
             <div class="api-config-bar" id="apiConfigContainer"></div>
 
+            <div class="sync-wrap" id="syncWrap" style="display:none;">
+                <button class="tool-icon-btn" onclick="openSyncModal()" title="Sync between browsers">
+                    ☁️
+                </button>
+                <span class="sync-status" id="syncStatus">Sync off</span>
+            </div>
+
             <div style="position:relative;">
                 <button class="tool-icon-btn" onclick="toggleGoogleSheetModal()" title="Import Data / CSV / Sheets">
                     📊
@@ -574,6 +590,15 @@
             </div>
         </div>
     </header>
+
+    <!-- Sync Modal -->
+    <div class="custom-modal-overlay" id="syncModalOverlay" onclick="if (event.target === this && !syncConflictPending) closeSyncModal()">
+        <div class="custom-modal">
+            <button class="modal-close-btn" id="syncModalClose" onclick="closeSyncModal()">×</button>
+            <h2 style="font-size:1.1rem; margin-bottom:12px; color:#fff;" id="syncModalTitle">Sync</h2>
+            <div id="syncModalBody"></div>
+        </div>
+    </div>
 
     <!-- Import Modal with direct CSV File Upload -->
     <div class="custom-modal-overlay" id="sheetModalOverlay" onclick="handleSheetModalOutside(event)">
@@ -1070,6 +1095,7 @@
             slots.forEach((s, idx) => s.id = idx + 1);
             localStorage.setItem('hoop13_slots', JSON.stringify(slots));
             render();
+            scheduleSync();
         }
 
         function moveSlot(idx, direction) {
@@ -1125,6 +1151,293 @@
         function tmdbKeyParam() {
             const key = getSavedTmdbKey();
             return key ? `api_key=${encodeURIComponent(key)}&` : '';
+        }
+
+        // ---------- Sync between browsers ----------
+        const SYNC_URL = TMDB_PROXY_URL + '/sync';
+        const SYNC_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        const SYNC_CODE_PATTERN = /^HOOP-[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/;
+        const SYNC_DELAY_MS = 4000;
+        let syncTimer = null;
+        let syncReady = false;
+        let syncInFlight = false;
+        let syncConflictPending = false;
+
+        function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+        function lsSet(k, v) { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
+
+        function getSyncCode() { return lsGet('hoop13_sync_code') || ''; }
+        function getSyncBase() { const v = lsGet('hoop13_sync_base'); return v ? Number(v) : null; }
+        function syncPayload() { return { slots: slots, locked: isLockedByDate }; }
+        function syncPayloadText() { return JSON.stringify(syncPayload()); }
+        function hasUnsyncedChanges() { return syncPayloadText() !== lsGet('hoop13_sync_snapshot'); }
+
+        function normalizeSyncCode(raw) {
+            const chars = String(raw || '').toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/^HOOP/, '');
+            if (chars.length !== 16) return '';
+            const code = 'HOOP-' + chars.match(/.{4}/g).join('-');
+            return SYNC_CODE_PATTERN.test(code) ? code : '';
+        }
+
+        function generateSyncCode() {
+            const bytes = new Uint8Array(16);
+            crypto.getRandomValues(bytes);
+            const chars = Array.from(bytes, b => SYNC_ALPHABET[b % 32]).join('');
+            return 'HOOP-' + chars.match(/.{4}/g).join('-');
+        }
+
+        function setSyncStatus(text, kind) {
+            const el = document.getElementById('syncStatus');
+            if (!el) return;
+            el.textContent = text;
+            el.className = 'sync-status' + (kind ? ' ' + kind : '');
+        }
+
+        function markSynced(updatedAt) {
+            lsSet('hoop13_sync_base', String(updatedAt));
+            lsSet('hoop13_sync_snapshot', syncPayloadText());
+            setSyncStatus('Synced', 'ok');
+        }
+
+        async function syncRequest(method, body, keepalive) {
+            return fetch(SYNC_URL, {
+                method,
+                headers: { 'X-Sync-Code': getSyncCode(), ...(body ? { 'Content-Type': 'application/json' } : {}) },
+                body: body ? JSON.stringify(body) : undefined,
+                cache: 'no-store',
+                keepalive: !!keepalive
+            });
+        }
+
+        function scheduleSync() {
+            if (!getSyncCode() || !syncReady || syncConflictPending) return;
+            if (!hasUnsyncedChanges()) { if (!syncInFlight) setSyncStatus('Synced', 'ok'); return; }
+            setSyncStatus('Unsaved…', 'warn');
+            clearTimeout(syncTimer);
+            syncTimer = setTimeout(pushSync, SYNC_DELAY_MS);
+        }
+
+        async function pushSync(force = false) {
+            clearTimeout(syncTimer);
+            syncTimer = null;
+            if (!getSyncCode()) return;
+            if (syncInFlight) { syncTimer = setTimeout(pushSync, 1000); return; }
+            syncInFlight = true;
+            setSyncStatus('Saving…', 'warn');
+            const sentText = syncPayloadText();
+            try {
+                const res = await syncRequest('PUT', { data: JSON.parse(sentText), baseUpdatedAt: getSyncBase(), force });
+                if (res.status === 409) {
+                    syncInFlight = false;
+                    await pullSync(true);
+                    return;
+                }
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const out = await res.json();
+                lsSet('hoop13_sync_base', String(out.updatedAt));
+                lsSet('hoop13_sync_snapshot', sentText);
+                syncInFlight = false;
+                if (hasUnsyncedChanges()) scheduleSync(); else setSyncStatus('Synced', 'ok');
+            } catch (e) {
+                syncInFlight = false;
+                console.error('Sync save failed', e);
+                setSyncStatus(navigator.onLine === false ? 'Offline' : 'Sync error', 'err');
+            }
+        }
+
+        function applyRemoteData(remote) {
+            const data = remote.data || {};
+            if (!Array.isArray(data.slots)) return false;
+            slots = data.slots;
+            isLockedByDate = !!data.locked;
+            const toggle = document.getElementById('lockByDateToggle');
+            if (toggle) toggle.checked = isLockedByDate;
+            lsSet('hoop13_locked', JSON.stringify(isLockedByDate));
+            slots.forEach((s, idx) => s.id = idx + 1);
+            lsSet('hoop13_slots', JSON.stringify(slots));
+            markSynced(remote.updatedAt);
+            render();
+            return true;
+        }
+
+        // Fetches the saved list; applies it, pushes local changes, or asks about a conflict
+        async function pullSync(fromConflict = false) {
+            if (!getSyncCode() || syncInFlight || syncConflictPending) return;
+            syncInFlight = true;
+            if (!fromConflict) setSyncStatus('Checking…', 'warn');
+            try {
+                const res = await syncRequest('GET');
+                syncInFlight = false;
+                if (res.status === 404) {
+                    syncReady = true;
+                    await pushSync(true);
+                    return;
+                }
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const remote = await res.json();
+                syncReady = true;
+                const base = getSyncBase();
+                if (remote.updatedAt === base && !fromConflict) {
+                    if (hasUnsyncedChanges()) scheduleSync(); else setSyncStatus('Synced', 'ok');
+                } else if (!hasUnsyncedChanges()) {
+                    applyRemoteData(remote);
+                } else {
+                    showSyncConflict(remote);
+                }
+            } catch (e) {
+                syncInFlight = false;
+                syncReady = true;
+                console.error('Sync load failed', e);
+                setSyncStatus(navigator.onLine === false ? 'Offline' : 'Sync error', 'err');
+            }
+        }
+
+        function countFilms(list) { return (list || []).filter(s => s && s.title).length; }
+
+        function openSyncModal() {
+            const body = document.getElementById('syncModalBody');
+            const code = getSyncCode();
+            document.getElementById('syncModalTitle').textContent = 'Sync between browsers';
+            if (code) {
+                body.innerHTML = `
+                    <p class="sync-modal-text">Sync is on. Enter this code on another browser to load the same list. Anyone with the code can see and edit it, so keep it private.</p>
+                    <div class="sync-code-box" id="syncCodeShown">${escapeHtml(code)}</div>
+                    <div class="sync-modal-actions">
+                        <button onclick="copySyncCode()">Copy code</button>
+                        <button class="btn-secondary" onclick="pullSync(); closeSyncModal();">Sync now</button>
+                        <button class="btn-secondary" onclick="turnOffSync()">Turn off on this browser</button>
+                    </div>`;
+            } else {
+                body.innerHTML = `
+                    <p class="sync-modal-text">Keep your list in sync across browsers and devices. Start sync here to get a code, or enter a code you already have.</p>
+                    <div class="sync-modal-actions" style="margin-top:0; margin-bottom:16px;">
+                        <button onclick="startNewSync()">Turn on sync</button>
+                    </div>
+                    <label class="sync-modal-text" style="display:block; margin-bottom:6px;">I have a code</label>
+                    <input class="sync-code-input" id="syncCodeInput" placeholder="HOOP-XXXX-XXXX-XXXX-XXXX" autocomplete="off" spellcheck="false">
+                    <div class="sync-modal-actions">
+                        <button onclick="joinSyncWithCode()">Load my list</button>
+                    </div>`;
+            }
+            document.getElementById('syncModalClose').style.display = '';
+            document.getElementById('syncModalOverlay').classList.add('active');
+        }
+
+        function closeSyncModal() {
+            if (syncConflictPending) return;
+            document.getElementById('syncModalOverlay').classList.remove('active');
+        }
+
+        function copySyncCode() {
+            const code = getSyncCode();
+            const done = () => setSyncStatus('Code copied', 'ok');
+            if (navigator.clipboard) navigator.clipboard.writeText(code).then(done).catch(() => {});
+        }
+
+        async function startNewSync() {
+            const code = generateSyncCode();
+            lsSet('hoop13_sync_code', code);
+            lsSet('hoop13_sync_base', null);
+            lsSet('hoop13_sync_snapshot', null);
+            syncReady = true;
+            openSyncModal();
+            document.getElementById('syncModalTitle').textContent = 'Sync is on — save this code';
+            await pushSync(true);
+        }
+
+        async function joinSyncWithCode() {
+            const input = document.getElementById('syncCodeInput');
+            const code = normalizeSyncCode(input ? input.value : '');
+            if (!code) { alert('That code doesn\'t look right. It should look like HOOP-XXXX-XXXX-XXXX-XXXX.'); return; }
+            const prevCode = getSyncCode();
+            lsSet('hoop13_sync_code', code);
+            try {
+                const res = await syncRequest('GET');
+                if (res.status === 404) {
+                    lsSet('hoop13_sync_code', prevCode || null);
+                    alert('No list was found for that code. Check it and try again.');
+                    return;
+                }
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const remote = await res.json();
+                const localCount = countFilms(slots);
+                if (localCount > 0 && !confirm(`Replace this browser's list (${localCount} films) with the synced list (${countFilms(remote.data && remote.data.slots)} films)?\n\nTip: export a CSV first if you want a backup of this browser's list.`)) {
+                    lsSet('hoop13_sync_code', prevCode || null);
+                    return;
+                }
+                syncReady = true;
+                applyRemoteData(remote);
+                syncMissingPosters();
+                openSyncModal();
+            } catch (e) {
+                lsSet('hoop13_sync_code', prevCode || null);
+                console.error('Sync join failed', e);
+                alert('Couldn\'t reach the sync service. Check your connection and try again.');
+            }
+        }
+
+        function turnOffSync() {
+            if (!confirm('Turn off sync on this browser? Your list stays here and in the cloud; you can turn sync back on with the same code.')) return;
+            clearTimeout(syncTimer);
+            lsSet('hoop13_sync_code', null);
+            lsSet('hoop13_sync_base', null);
+            lsSet('hoop13_sync_snapshot', null);
+            setSyncStatus('Sync off', '');
+            closeSyncModal();
+        }
+
+        function showSyncConflict(remote) {
+            syncConflictPending = true;
+            clearTimeout(syncTimer);
+            setSyncStatus('Needs a choice', 'warn');
+            window.__syncConflictRemote = remote;
+            const when = remote.updatedAt ? new Date(remote.updatedAt).toLocaleString() : 'recently';
+            document.getElementById('syncModalTitle').textContent = 'Two versions of your list';
+            document.getElementById('syncModalBody').innerHTML = `
+                <p class="sync-modal-text">This browser has changes that weren't synced, and another browser saved a different version (${escapeHtml(when)}). Which one should be kept?</p>
+                <p class="sync-modal-text">This browser: <strong>${countFilms(slots)}</strong> films &nbsp;·&nbsp; Other version: <strong>${countFilms(remote.data && remote.data.slots)}</strong> films</p>
+                <div class="sync-modal-actions">
+                    <button onclick="resolveSyncConflict('remote')">Use the other version</button>
+                    <button class="btn-secondary" onclick="resolveSyncConflict('local')">Keep this browser's version</button>
+                </div>
+                <p class="sync-modal-text" style="margin-top:12px;">The version you don't pick is replaced. Export a CSV first if you want a backup.</p>`;
+            document.getElementById('syncModalClose').style.display = 'none';
+            document.getElementById('syncModalOverlay').classList.add('active');
+        }
+
+        async function resolveSyncConflict(choice) {
+            const remote = window.__syncConflictRemote;
+            syncConflictPending = false;
+            window.__syncConflictRemote = null;
+            document.getElementById('syncModalClose').style.display = '';
+            document.getElementById('syncModalOverlay').classList.remove('active');
+            if (choice === 'remote' && remote) {
+                applyRemoteData(remote);
+                syncMissingPosters();
+            } else {
+                await pushSync(true);
+            }
+        }
+
+        function initSync() {
+            if (!isProxyAvailable()) return;
+            document.getElementById('syncWrap').style.display = '';
+            if (!getSyncCode()) { setSyncStatus('Sync off', ''); return; }
+            pullSync();
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') {
+                    if (syncTimer) pushSync(); else pullSync();
+                } else if (syncTimer && hasUnsyncedChanges()) {
+                    clearTimeout(syncTimer);
+                    syncTimer = null;
+                    const sentText = syncPayloadText();
+                    syncRequest('PUT', { data: JSON.parse(sentText), baseUpdatedAt: getSyncBase() }, sentText.length < 60000)
+                        .then(r => r.ok ? r.json() : null)
+                        .then(out => { if (out) { lsSet('hoop13_sync_base', String(out.updatedAt)); lsSet('hoop13_sync_snapshot', sentText); setSyncStatus('Synced', 'ok'); } })
+                        .catch(() => {});
+                }
+            });
+            window.addEventListener('online', () => { if (hasUnsyncedChanges()) pushSync(); else pullSync(); });
         }
 
         function renderApiConfig() {
@@ -2347,11 +2660,12 @@
             const url = window.URL.createObjectURL(blob);
             const link = document.getElementById('downloadLink') || document.createElement('a');
             link.setAttribute('href', url);
-            link.setAttribute('download', 'hooptober_13_progress_tracker_v70.csv');
+            link.setAttribute('download', 'hooptober_13_progress_tracker_v71.csv');
             link.click();
         }
 
         renderApiConfig();
+        initSync();
         if (isLockedByDate) {
             applyDateSorting();
         } else {
