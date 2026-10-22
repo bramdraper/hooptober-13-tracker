@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hooptober 13 Horror Challenge Tracker v73</title>
+    <title>Hooptober 13 Horror Challenge Tracker v74</title>
     <link href="https://fonts.googleapis.com/css2?family=Creepster&family=Cinzel:wght@700&display=swap" rel="stylesheet">
     <style>
         :root {
             --bg-main: #0d0d0f;
             --bg-card: #16161a;
             --bg-card-hover: #1e1e24;
-            --accent-red: #e50914;
-            --accent-red-hover: #ff1e27;
-            --accent-red-muted: #8b1e22;
+            --accent-red: #b7410e;
+            --accent-red-hover: #cf5520;
+            --accent-red-muted: #6e2708;
             --text-main: #f0f0f5;
             --text-muted: #8e8e9e;
             --border-color: #2a2a35;
@@ -29,7 +29,7 @@
         header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; padding-bottom: 20px; border-bottom: 1px solid var(--border-color); margin-bottom: 24px; }
         
         .title-area { position: relative; display: inline-block; }
-        .title-area h1 { font-family: 'Creepster', cursive, sans-serif; font-size: 2.8rem; color: var(--accent-red); letter-spacing: 2px; text-shadow: 2px 2px 8px rgba(229, 9, 20, 0.4); cursor: pointer; transition: color 0.2s; }
+        .title-area h1 { font-family: 'Creepster', cursive, sans-serif; font-size: 2.8rem; color: var(--accent-red); letter-spacing: 2px; text-shadow: 2px 2px 8px rgba(183, 65, 14, 0.4); cursor: pointer; transition: color 0.2s; }
         .title-area h1:hover { color: var(--accent-red-hover); }
 
         .lee-popup {
@@ -64,7 +64,7 @@
             max-height: 300px;
             object-fit: contain;
             mix-blend-mode: screen;
-            filter: drop-shadow(0 0 15px rgba(229, 9, 20, 0.75)) contrast(1.2);
+            filter: drop-shadow(0 0 15px rgba(183, 65, 14, 0.75)) contrast(1.2);
             display: block;
         }
 
@@ -72,7 +72,7 @@
             display: none;
             width: 180px;
             height: 180px;
-            filter: drop-shadow(0 0 18px rgba(229, 9, 20, 0.85));
+            filter: drop-shadow(0 0 18px rgba(183, 65, 14, 0.85));
         }
 
         .top-right-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -215,7 +215,7 @@
         @media (max-width: 1100px) { .app-layout { grid-template-columns: 1fr; } }
 
         .controls-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
-        .search-container { position: relative; flex-grow: 1; max-width: 480px; }
+        .search-container { position: relative; z-index: 20000; flex-grow: 1; max-width: 480px; }
         .search-container input { width: 100%; background: var(--bg-card); border: 1px solid var(--border-color); color: #fff; padding: 10px 14px; border-radius: 6px; font-size: 0.9rem; }
         .search-results { position: absolute; top: 100%; left: 0; right: 0; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 6px; margin-top: 4px; max-height: 380px; overflow-y: auto; z-index: 500; box-shadow: 0 10px 25px rgba(0,0,0,0.85); }
         .search-result-item { display: flex; gap: 12px; padding: 10px; border-bottom: 1px solid var(--border-color); cursor: pointer; transition: background 0.15s, box-shadow 0.15s; align-items: center; }
@@ -228,10 +228,10 @@
         .search-more-link:hover { color: #fff; text-decoration: underline; }
         .slot-card.new-slot-flash { animation: newSlotFlash 1.6s ease-out; }
         @keyframes newSlotFlash {
-            0%, 30% { border-color: var(--accent-red); box-shadow: 0 0 0 2px var(--accent-red), 0 0 22px rgba(229,9,20,0.55); }
-            100% { box-shadow: 0 0 0 0 rgba(229,9,20,0); }
+            0%, 30% { border-color: var(--accent-red); box-shadow: 0 0 0 2px var(--accent-red), 0 0 22px rgba(183, 65, 14,0.55); }
+            100% { box-shadow: 0 0 0 0 rgba(183, 65, 14,0); }
         }
-        .fly-card { position: fixed; z-index: 3000000; pointer-events: none; width: 60px; height: 90px; border-radius: 6px; overflow: hidden; background: #2a2a35; border: 1px solid var(--accent-red); box-shadow: 0 8px 24px rgba(0,0,0,0.7), 0 0 14px rgba(229,9,20,0.45); display: flex; align-items: center; justify-content: center; text-align: center; font-size: 0.6rem; color: #fff; padding: 0; }
+        .fly-card { position: fixed; z-index: 3000000; pointer-events: none; width: 60px; height: 90px; border-radius: 6px; overflow: hidden; background: #2a2a35; border: 1px solid var(--accent-red); box-shadow: 0 8px 24px rgba(0,0,0,0.7), 0 0 14px rgba(183, 65, 14,0.45); display: flex; align-items: center; justify-content: center; text-align: center; font-size: 0.6rem; color: #fff; padding: 0; }
         .fly-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
         .search-result-item img { width: 40px; height: 60px; object-fit: cover; border-radius: 4px; background: #2a2a35; }
 
@@ -256,6 +256,7 @@
             z-index: 1;
         }
         .slot-card:hover { z-index: 10000; }
+        .slot-card.search-open, .slot-card.search-open:hover { z-index: 20000; }
         .slot-card:active { cursor: grabbing; }
         .slot-card.dragging { opacity: 0.4; border: 2px dashed var(--accent-red); }
         .slot-card.watched { border-left: 4px solid var(--success-green); background: #141a16; }
@@ -273,7 +274,7 @@
         }
         .slot-card.add-card-tile:hover {
             border-color: var(--accent-red);
-            background: rgba(229, 9, 20, 0.05);
+            background: rgba(183, 65, 14, 0.05);
         }
         .add-card-plus {
             font-size: 2.5rem;
@@ -433,7 +434,7 @@
         .slot-demarcation-line {
             flex-grow: 1;
             height: 1px;
-            background: linear-gradient(90deg, var(--border-color), rgba(229, 9, 20, 0.4), var(--border-color));
+            background: linear-gradient(90deg, var(--border-color), rgba(183, 65, 14, 0.4), var(--border-color));
         }
         .slot-demarcation-label {
             font-size: 0.75rem;
@@ -558,7 +559,7 @@
                 <img id="leeImg" src="https://upload.wikimedia.org/wikipedia/commons/2/23/Dracula_%281958%29_trailer_-_Christopher_Lee.png" alt="Sir Christopher Lee" onerror="handleLeeImgError()">
                 <svg id="leeFallbackSvg" class="lee-popup-fallback" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M50 15 C52 8, 58 4, 62 2 C60 10, 55 14, 52 17 Z" fill="#2d7326" />
-                    <ellipse cx="50" cy="58" rx="42" ry="34" fill="#ff6b00" stroke="#e50914" stroke-width="2"/>
+                    <ellipse cx="50" cy="58" rx="42" ry="34" fill="#ff6b00" stroke="#b7410e" stroke-width="2"/>
                     <ellipse cx="38" cy="58" rx="22" ry="32" fill="#ff791a" />
                     <ellipse cx="62" cy="58" rx="22" ry="32" fill="#ff791a" />
                     <ellipse cx="50" cy="58" rx="16" ry="34" fill="#ff8833" />
@@ -821,19 +822,19 @@
 
         const SPOOKY_REEL_SVG = `
             <svg class="slot-poster-svg" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="32" cy="32" r="26" stroke="#e50914" stroke-width="3" fill="#16161a"/>
-                <circle cx="32" cy="32" r="8" fill="#e50914"/>
-                <circle cx="32" cy="14" r="5" fill="#0d0d0f" stroke="#e50914" stroke-width="2"/>
-                <circle cx="32" cy="50" r="5" fill="#0d0d0f" stroke="#e50914" stroke-width="2"/>
-                <circle cx="14" cy="32" r="5" fill="#0d0d0f" stroke="#e50914" stroke-width="2"/>
-                <circle cx="50" cy="32" r="5" fill="#0d0d0f" stroke="#e50914" stroke-width="2"/>
+                <circle cx="32" cy="32" r="26" stroke="#b7410e" stroke-width="3" fill="#16161a"/>
+                <circle cx="32" cy="32" r="8" fill="#b7410e"/>
+                <circle cx="32" cy="14" r="5" fill="#0d0d0f" stroke="#b7410e" stroke-width="2"/>
+                <circle cx="32" cy="50" r="5" fill="#0d0d0f" stroke="#b7410e" stroke-width="2"/>
+                <circle cx="14" cy="32" r="5" fill="#0d0d0f" stroke="#b7410e" stroke-width="2"/>
+                <circle cx="50" cy="32" r="5" fill="#0d0d0f" stroke="#b7410e" stroke-width="2"/>
                 <path d="M16 16 L24 24 M48 16 L40 24 M16 48 L24 40 M48 48 L40 40" stroke="#3a3a48" stroke-width="2" stroke-linecap="round"/>
             </svg>
         `;
 
         const GREY_EYE_HTML = `<svg width="18" height="18" viewBox="0 0 24 24" style="display:block; min-width:18px; min-height:18px;"><path fill="#d0d0e0" d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>`;
 
-        const NO_POSTER_THUMB = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="60" viewBox="0 0 40 60"><rect width="40" height="60" fill="#2a2a35"/><circle cx="20" cy="30" r="9" fill="none" stroke="#e50914" stroke-width="2"/><circle cx="20" cy="30" r="2.5" fill="#e50914"/></svg>');
+        const NO_POSTER_THUMB = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="60" viewBox="0 0 40 60"><rect width="40" height="60" fill="#2a2a35"/><circle cx="20" cy="30" r="9" fill="none" stroke="#b7410e" stroke-width="2"/><circle cx="20" cy="30" r="2.5" fill="#b7410e"/></svg>');
 
         function escapeHtml(value) {
             return String(value ?? '')
@@ -979,6 +980,8 @@
             const container = document.getElementById(`quickSearchBox_${idx}`);
             if (!container) return;
 
+            const openCard = container.closest('.slot-card');
+            if (openCard) openCard.classList.add('search-open');
             container.innerHTML = `
                 <div class="inline-search-popover active" id="quickSearchPop_${idx}">
                     <input type="text" id="quickInput_${idx}" placeholder="Type movie title..." oninput="debounceQuickSearch(${idx})" autofocus>
@@ -995,7 +998,11 @@
             if (activeQuickSearchIdx !== null) {
                 const idx = activeQuickSearchIdx;
                 const container = document.getElementById(`quickSearchBox_${idx}`);
-                if (container) container.innerHTML = (slots[idx] && !slots[idx].title) ? emptySlotLabelHtml(idx) : '';
+                if (container) {
+                    container.innerHTML = (slots[idx] && !slots[idx].title) ? emptySlotLabelHtml(idx) : '';
+                    const openCard = container.closest('.slot-card');
+                    if (openCard) openCard.classList.remove('search-open');
+                }
                 activeQuickSearchIdx = null;
             }
         }
@@ -2719,7 +2726,7 @@
             const url = window.URL.createObjectURL(blob);
             const link = document.getElementById('downloadLink') || document.createElement('a');
             link.setAttribute('href', url);
-            link.setAttribute('download', 'hooptober_13_progress_tracker_v73.csv');
+            link.setAttribute('download', 'hooptober_13_progress_tracker_v74.csv');
             link.click();
         }
 
