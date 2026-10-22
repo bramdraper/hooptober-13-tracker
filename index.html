@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hooptober 13 Horror Challenge Tracker v76</title>
+    <title>Hooptober 13 Horror Challenge Tracker v77</title>
     <link href="https://fonts.googleapis.com/css2?family=Creepster&family=Cinzel:wght@700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -337,6 +337,8 @@
             line-height: 1;
         }
         .arrow-btn:hover { background: var(--accent-red); border-color: var(--accent-red); }
+        .arrow-btn.jump-btn { height: 13px; }
+        .arrow-btn.jump-btn svg { width: 8px; height: 9px; display: block; }
 
         .slot-poster-wrapper { 
             width: 65px; height: 98px; border-radius: 4px; overflow: visible; background: #111116; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border-color); position: relative; cursor: pointer;
@@ -1153,6 +1155,33 @@
             saveState();
         }
 
+        const JUMP_UP_SVG = '<svg viewBox="0 0 10 12" aria-hidden="true"><path d="M5 0.5 L9.5 5.5 L0.5 5.5 Z M5 6 L9.5 11 L0.5 11 Z" fill="currentColor"/></svg>';
+        const JUMP_DOWN_SVG = '<svg viewBox="0 0 10 12" aria-hidden="true"><path d="M0.5 1 L9.5 1 L5 6 Z M0.5 6.5 L9.5 6.5 L5 11.5 Z" fill="currentColor"/></svg>';
+
+        // Top: slot #1, or just below the dated films when Locked by date is on.
+        // Bottom: right after the last filled slot.
+        function moveSlotToEdge(idx, edge) {
+            if (activeGroupMode) return;
+            const s = slots[idx];
+            if (!s || !s.title) return;
+            const datedCount = slots.filter(x => x.title && x.viewingDate).length;
+            if (isLockedByDate && idx < datedCount) return;
+
+            const rest = slots.filter((_, i) => i !== idx);
+            let target;
+            if (edge === 'top') {
+                target = isLockedByDate ? datedCount : 0;
+            } else {
+                let lastFilled = -1;
+                rest.forEach((x, i) => { if (x.title) lastFilled = i; });
+                target = lastFilled + 1;
+            }
+            if (target === idx) return;
+            rest.splice(target, 0, s);
+            slots = rest;
+            saveState();
+        }
+
         function addNewSlot(e) {
             if (e && e.stopPropagation) e.stopPropagation();
             slots.push({
@@ -1709,8 +1738,10 @@
             const isItemLocked = isLockedByDate && realIdx < datedCount;
             const reorderArrowsHtml = (isItemLocked || isGrouped) ? '' : `
                 <div class="slot-reorder-arrows">
+                    ${s.title ? `<button class="arrow-btn jump-btn" onclick="moveSlotToEdge(${realIdx}, 'top')" title="${isLockedByDate ? 'Send to top (below dated films)' : 'Send to top'}">${JUMP_UP_SVG}</button>` : ''}
                     <button class="arrow-btn" onclick="moveSlot(${realIdx}, -1)" title="Move Up">▲</button>
                     <button class="arrow-btn" onclick="moveSlot(${realIdx}, 1)" title="Move Down">▼</button>
+                    ${s.title ? `<button class="arrow-btn jump-btn" onclick="moveSlotToEdge(${realIdx}, 'bottom')" title="Send to bottom (after last film)">${JUMP_DOWN_SVG}</button>` : ''}
                 </div>
             `;
 
@@ -2742,7 +2773,7 @@
             const url = window.URL.createObjectURL(blob);
             const link = document.getElementById('downloadLink') || document.createElement('a');
             link.setAttribute('href', url);
-            link.setAttribute('download', 'hooptober_13_progress_tracker_v76.csv');
+            link.setAttribute('download', 'hooptober_13_progress_tracker_v77.csv');
             link.click();
         }
 
