@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hooptober 13 Horror Challenge Tracker v71</title>
+    <title>Hooptober 13 Horror Challenge Tracker v72</title>
     <link href="https://fonts.googleapis.com/css2?family=Creepster&family=Cinzel:wght@700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -218,8 +218,16 @@
         .search-container { position: relative; flex-grow: 1; max-width: 480px; }
         .search-container input { width: 100%; background: var(--bg-card); border: 1px solid var(--border-color); color: #fff; padding: 10px 14px; border-radius: 6px; font-size: 0.9rem; }
         .search-results { position: absolute; top: 100%; left: 0; right: 0; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 6px; margin-top: 4px; max-height: 380px; overflow-y: auto; z-index: 500; box-shadow: 0 10px 25px rgba(0,0,0,0.85); }
-        .search-result-item { display: flex; gap: 12px; padding: 10px; border-bottom: 1px solid var(--border-color); cursor: pointer; transition: background 0.15s; }
+        .search-result-item { display: flex; gap: 12px; padding: 10px; border-bottom: 1px solid var(--border-color); cursor: pointer; transition: background 0.15s, box-shadow 0.15s; align-items: center; }
         .search-result-item:hover { background: var(--bg-card-hover); }
+        .search-result-item.selected { background: var(--bg-card-hover); box-shadow: inset 3px 0 0 var(--accent-red); }
+        .search-result-info { flex: 1; min-width: 0; }
+        .search-result-actions { display: flex; flex-direction: column; align-items: center; gap: 6px; flex-shrink: 0; }
+        .search-add-btn { width: 32px; height: 32px; padding: 0; border-radius: 50%; font-size: 1.25rem; line-height: 1; display: flex; align-items: center; justify-content: center; }
+        .search-more-link { font-size: 0.72rem; color: var(--text-muted); text-decoration: none; white-space: nowrap; }
+        .search-more-link:hover { color: #fff; text-decoration: underline; }
+        .fly-card { position: fixed; z-index: 3000000; pointer-events: none; width: 60px; height: 90px; border-radius: 6px; overflow: hidden; background: #2a2a35; border: 1px solid var(--accent-red); box-shadow: 0 8px 24px rgba(0,0,0,0.7), 0 0 14px rgba(229,9,20,0.45); display: flex; align-items: center; justify-content: center; text-align: center; font-size: 0.6rem; color: #fff; padding: 0; }
+        .fly-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
         .search-result-item img { width: 40px; height: 60px; object-fit: cover; border-radius: 4px; background: #2a2a35; }
 
         .lock-control-inline { display: flex; align-items: center; gap: 5px; font-size: 0.75rem; color: var(--text-muted); cursor: pointer; background: var(--bg-card); padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-color); }
@@ -1131,9 +1139,8 @@
         const TMDB_PROXY_URL = 'https://hooptober-tmdb.bram-draper.workers.dev';
         const PROXY_HOSTS = ['bramdraper.github.io'];
 
-        function getSavedTmdbKey() {
-            try { return localStorage.getItem('hoop13_tmdb_key') || ''; } catch (e) { return ''; }
-        }
+        // Personal TMDb keys are no longer used; clear any left over from older versions
+        try { localStorage.removeItem('hoop13_tmdb_key'); } catch (e) {}
 
         function isProxyAvailable() {
             return location.protocol === 'https:' && PROXY_HOSTS.includes(location.hostname);
@@ -1141,16 +1148,15 @@
 
         // Truthy when TMDb lookups can run: a saved key, or the hosted site's proxy
         function getTmdbAccess() {
-            return getSavedTmdbKey() || (isProxyAvailable() ? 'proxy' : '');
+            return isProxyAvailable() ? 'proxy' : '';
         }
 
         function tmdbApiBase() {
-            return getSavedTmdbKey() ? 'https://api.themoviedb.org' : TMDB_PROXY_URL;
+            return TMDB_PROXY_URL;
         }
 
         function tmdbKeyParam() {
-            const key = getSavedTmdbKey();
-            return key ? `api_key=${encodeURIComponent(key)}&` : '';
+            return '';
         }
 
         // ---------- Sync between browsers ----------
@@ -1441,29 +1447,10 @@
         }
 
         function renderApiConfig() {
-            const key = getSavedTmdbKey();
             const container = document.getElementById('apiConfigContainer');
-            if (!key && isProxyAvailable()) {
-                container.innerHTML = `<div class="api-status-badge" title="TMDb lookups run through the tracker's proxy. No key needed.">✓ TMDb</div>`;
-            } else if (key) {
-                container.innerHTML = `<div class="api-status-badge">✓ TMDb</div><button class="btn-secondary" style="padding:2px 6px; font-size:0.75rem;" onclick="editApiKey()">Edit</button>`;
-            } else {
-                container.innerHTML = `<input type="password" id="tmdbKeyInput" placeholder="TMDb API Key..."><button style="padding:4px 8px; font-size:0.75rem;" onclick="saveApiKey()">Save</button>`;
-            }
-        }
-
-        function saveApiKey() {
-            const input = document.getElementById('tmdbKeyInput');
-            if (input && input.value.trim()) {
-                localStorage.setItem('hoop13_tmdb_key', input.value.trim());
-                renderApiConfig();
-                syncMissingPosters();
-            }
-        }
-
-        function editApiKey() {
-            const currentKey = localStorage.getItem('hoop13_tmdb_key') || '';
-            document.getElementById('apiConfigContainer').innerHTML = `<input type="password" id="tmdbKeyInput" value="${escapeHtml(currentKey)}"><button style="padding:4px 8px; font-size:0.75rem;" onclick="saveApiKey()">Save</button><button class="btn-secondary" style="padding:4px 8px; font-size:0.75rem;" onclick="renderApiConfig()">Cancel</button>`;
+            container.innerHTML = isProxyAvailable()
+                ? `<div class="api-status-badge" title="Movie search is connected.">✓ TMDb</div>`
+                : `<div class="api-status-badge" style="color:var(--text-muted);" title="Movie search only works on the live site.">TMDb offline</div>`;
         }
 
         function getPosterFile(posterUrl) {
@@ -1477,7 +1464,7 @@
         async function repairMissingIds() {
             if (isRepairingIds) return;
             const apiKey = getTmdbAccess();
-            if (!apiKey) { alert('Add your TMDb API key first, then try again.'); return; }
+            if (!apiKey) { alert('Movie search only works on the live site.'); return; }
 
             const targets = slots.filter(s => s.title && !s.tmdbId);
             if (targets.length === 0) { alert('Every film already has a TMDb ID. Nothing to repair.'); return; }
@@ -2132,11 +2119,15 @@
                 if (data.results && data.results.length > 0) {
                     resultsBox.style.display = 'block';
                     resultsBox.innerHTML = data.results.slice(0, 8).map(m => `
-                        <div class="search-result-item" onclick="selectMovie(${m.id})">
+                        <div class="search-result-item" onclick="highlightSearchResult(this)">
                             <img src="${m.poster_path ? 'https://image.tmdb.org/t/p/w92' + m.poster_path : NO_POSTER_THUMB}" />
-                            <div>
+                            <div class="search-result-info">
                                 <div style="font-weight:bold; color:#fff;">${escapeHtml(m.title)} (${m.release_date ? m.release_date.split('-')[0] : 'N/A'})</div>
-                                <div style="font-size:0.75rem; color:#8e8e9e;">${m.overview ? escapeHtml(m.overview.substring(0, 80)) + '...' : 'Select film'}</div>
+                                <div style="font-size:0.75rem; color:#8e8e9e;">${m.overview ? escapeHtml(m.overview.substring(0, 80)) + '...' : ''}</div>
+                            </div>
+                            <div class="search-result-actions">
+                                <button class="search-add-btn" title="Add to list" onclick="event.stopPropagation(); addFromSearch(${m.id}, this)">+</button>
+                                <a class="search-more-link" href="https://www.themoviedb.org/movie/${m.id}" target="_blank" rel="noopener" onclick="event.stopPropagation();">More…</a>
                             </div>
                         </div>
                     `).join('');
@@ -2144,7 +2135,52 @@
             } catch (e) { console.error(e); }
         }
 
-        async function selectMovie(tmdbId) {
+        function highlightSearchResult(row) {
+            document.querySelectorAll('#searchResults .search-result-item.selected').forEach(el => el.classList.remove('selected'));
+            row.classList.add('selected');
+        }
+
+        async function addFromSearch(tmdbId, btn) {
+            const row = btn ? btn.closest('.search-result-item') : null;
+            const thumb = row ? row.querySelector('img') : null;
+            const startRect = (thumb || document.getElementById('searchInput')).getBoundingClientRect();
+            if (btn) btn.disabled = true;
+            await selectMovie(tmdbId, startRect);
+        }
+
+        // Drops a poster from the search area about halfway down the page, fading out
+        function animateAddedFilm(posterUrl, title, startRect) {
+            const origin = startRect || document.getElementById('searchInput').getBoundingClientRect();
+            const card = document.createElement('div');
+            card.className = 'fly-card';
+            if (posterUrl) {
+                const img = document.createElement('img');
+                img.src = posterUrl;
+                img.alt = '';
+                card.appendChild(img);
+            } else {
+                card.textContent = title || '';
+            }
+            card.style.left = (origin.left + origin.width / 2 - 30) + 'px';
+            card.style.top = (origin.top + origin.height / 2 - 45) + 'px';
+            document.body.appendChild(card);
+
+            const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            const drop = Math.max(160, window.innerHeight * 0.5);
+            const frames = reduceMotion
+                ? [{ opacity: 1 }, { opacity: 0 }]
+                : [
+                    { transform: 'translateY(0) scale(1)', opacity: 1 },
+                    { transform: `translateY(${drop * 0.35}px) scale(1.05)`, opacity: 1, offset: 0.35 },
+                    { transform: `translateY(${drop}px) scale(0.85)`, opacity: 0 }
+                ];
+            if (!card.animate) { setTimeout(() => card.remove(), 600); return; }
+            const anim = card.animate(frames, { duration: reduceMotion ? 500 : 900, easing: 'cubic-bezier(0.45, 0, 0.75, 1)', fill: 'forwards' });
+            anim.onfinish = () => card.remove();
+            anim.oncancel = () => card.remove();
+        }
+
+        async function selectMovie(tmdbId, startRect) {
             const apiKey = getTmdbAccess();
             document.getElementById('searchResults').style.display = 'none';
             document.getElementById('searchInput').value = '';
@@ -2185,6 +2221,7 @@
                 } else {
                     saveState();
                 }
+                animateAddedFilm(slots.find(s => s.tmdbId === data.id)?.poster || '', data.title, startRect);
             } catch (e) { alert('Error fetching TMDb details.'); }
         }
 
@@ -2660,7 +2697,7 @@
             const url = window.URL.createObjectURL(blob);
             const link = document.getElementById('downloadLink') || document.createElement('a');
             link.setAttribute('href', url);
-            link.setAttribute('download', 'hooptober_13_progress_tracker_v71.csv');
+            link.setAttribute('download', 'hooptober_13_progress_tracker_v72.csv');
             link.click();
         }
 

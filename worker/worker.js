@@ -2,6 +2,11 @@
 // - /3/...  : TMDb proxy (needs the TMDB_KEY secret)
 // - /sync   : saves/loads a tracker list by sync code (needs a KV binding named SYNC)
 // Paste this whole file into the Worker's code editor and deploy.
+//
+// Setup in the Cloudflare dashboard:
+// - Secret:  TMDB_KEY  = your TMDb API key (the short "API Key", not the read access token)
+// - KV binding: Variable name must be exactly SYNC (all capitals; "sync" will NOT work),
+//   linked to the KV namespace "hooptober-sync"
 
 const ALLOWED_ORIGINS = ['https://bramdraper.github.io'];
 const SYNC_CODE_PATTERN = /^HOOP-[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/;
