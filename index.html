@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hooptober 13 Horror Challenge Tracker v75</title>
+    <title>Hooptober 13 Horror Challenge Tracker v76</title>
     <link href="https://fonts.googleapis.com/css2?family=Creepster&family=Cinzel:wght@700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -205,7 +205,8 @@
         @media (max-width: 1100px) { .app-layout { grid-template-columns: 1fr; } }
 
         .controls-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
-        .search-container { position: relative; z-index: 20000; flex-grow: 1; max-width: 480px; }
+        .search-container { position: relative; flex-grow: 1; max-width: 480px; }
+        .search-container.results-open { z-index: 20000; }
         .search-container input { width: 100%; background: var(--bg-card); border: 1px solid var(--border-color); color: #fff; padding: 10px 14px; border-radius: 6px; font-size: 0.9rem; }
         .search-results { position: absolute; top: 100%; left: 0; right: 0; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 6px; margin-top: 4px; max-height: 380px; overflow-y: auto; z-index: 500; box-shadow: 0 10px 25px rgba(0,0,0,0.85); }
         .search-result-item { display: flex; gap: 12px; padding: 10px; border-bottom: 1px solid var(--border-color); cursor: pointer; transition: background 0.15s, box-shadow 0.15s; align-items: center; }
@@ -957,6 +958,16 @@
             const input = document.getElementById('searchInput');
             if (box && input && input.value.trim() && box.querySelector('.search-result-item')) box.style.display = 'block';
         }
+
+        // Lift the top search above the cards only while its results list is showing
+        (function watchSearchResults() {
+            const box = document.getElementById('searchResults');
+            const area = box && box.closest('.search-container');
+            if (!box || !area) return;
+            const update = () => area.classList.toggle('results-open', box.style.display !== 'none');
+            new MutationObserver(update).observe(box, { attributes: true, attributeFilter: ['style'] });
+            update();
+        })();
 
         window.addEventListener('click', (e) => {
             const menu = document.getElementById('exportDropdown');
@@ -2731,7 +2742,7 @@
             const url = window.URL.createObjectURL(blob);
             const link = document.getElementById('downloadLink') || document.createElement('a');
             link.setAttribute('href', url);
-            link.setAttribute('download', 'hooptober_13_progress_tracker_v75.csv');
+            link.setAttribute('download', 'hooptober_13_progress_tracker_v76.csv');
             link.click();
         }
 
