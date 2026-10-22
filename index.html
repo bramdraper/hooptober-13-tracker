@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hooptober 13 Horror Challenge Tracker v72</title>
+    <title>Hooptober 13 Horror Challenge Tracker v73</title>
     <link href="https://fonts.googleapis.com/css2?family=Creepster&family=Cinzel:wght@700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -226,6 +226,11 @@
         .search-add-btn { width: 32px; height: 32px; padding: 0; border-radius: 50%; font-size: 1.25rem; line-height: 1; display: flex; align-items: center; justify-content: center; }
         .search-more-link { font-size: 0.72rem; color: var(--text-muted); text-decoration: none; white-space: nowrap; }
         .search-more-link:hover { color: #fff; text-decoration: underline; }
+        .slot-card.new-slot-flash { animation: newSlotFlash 1.6s ease-out; }
+        @keyframes newSlotFlash {
+            0%, 30% { border-color: var(--accent-red); box-shadow: 0 0 0 2px var(--accent-red), 0 0 22px rgba(229,9,20,0.55); }
+            100% { box-shadow: 0 0 0 0 rgba(229,9,20,0); }
+        }
         .fly-card { position: fixed; z-index: 3000000; pointer-events: none; width: 60px; height: 90px; border-radius: 6px; overflow: hidden; background: #2a2a35; border: 1px solid var(--accent-red); box-shadow: 0 8px 24px rgba(0,0,0,0.7), 0 0 14px rgba(229,9,20,0.45); display: flex; align-items: center; justify-content: center; text-align: center; font-size: 0.6rem; color: #fff; padding: 0; }
         .fly-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
         .search-result-item img { width: 40px; height: 60px; object-fit: cover; border-radius: 4px; background: #2a2a35; }
@@ -962,6 +967,10 @@
             }
         });
 
+        function emptySlotLabelHtml(idx) {
+            return `<span class="empty-slot-trigger" onclick="openQuickSearch(event, ${idx})" title="Click to search movie">Add Movie</span>`;
+        }
+
         function openQuickSearch(e, idx) {
             e.stopPropagation();
             closeQuickSearch();
@@ -978,14 +987,15 @@
             `;
             setTimeout(() => {
                 const inp = document.getElementById(`quickInput_${idx}`);
-                if (inp) inp.focus();
+                if (inp) inp.focus({ preventScroll: !!(e && e.keepScroll) });
             }, 50);
         }
 
         function closeQuickSearch() {
             if (activeQuickSearchIdx !== null) {
-                const container = document.getElementById(`quickSearchBox_${activeQuickSearchIdx}`);
-                if (container) container.innerHTML = '';
+                const idx = activeQuickSearchIdx;
+                const container = document.getElementById(`quickSearchBox_${idx}`);
+                if (container) container.innerHTML = (slots[idx] && !slots[idx].title) ? emptySlotLabelHtml(idx) : '';
                 activeQuickSearchIdx = null;
             }
         }
@@ -1120,12 +1130,24 @@
             saveState();
         }
 
-        function addNewSlot() {
+        function addNewSlot(e) {
+            if (e && e.stopPropagation) e.stopPropagation();
             slots.push({
                 id: slots.length + 1, title: '', year: '', country: '', director: '', poster: '', tmdbId: '', status: 'Planned', viewingDate: '', notes: '', tags: []
             });
             saveState();
-            openQuickSearch({ stopPropagation: () => {} }, slots.length - 1);
+            const idx = slots.length - 1;
+            openQuickSearch({ stopPropagation: () => {}, keepScroll: true }, idx);
+            const box = document.getElementById(`quickSearchBox_${idx}`);
+            const card = box ? box.closest('.slot-card') : null;
+            if (card) {
+                const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                card.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' });
+                card.classList.remove('new-slot-flash');
+                void card.offsetWidth;
+                card.classList.add('new-slot-flash');
+                setTimeout(() => card.classList.remove('new-slot-flash'), 1700);
+            }
         }
 
         function extractTmdbId(inputStr) {
@@ -1635,7 +1657,7 @@
                 ? (s.tmdbId 
                     ? `<a href="https://www.themoviedb.org/movie/${encodeURIComponent(s.tmdbId)}" target="_blank" rel="noopener">${safeTitle}</a>${yearStr}`
                     : `${safeTitle}${yearStr}`)
-                : `<span class="empty-slot-trigger" onclick="openQuickSearch(event, ${realIdx})" title="Click to search movie">Add Movie</span>`;
+                : emptySlotLabelHtml(realIdx);
 
             const appliedCats = getMovieCategories(s);
             const tooltipHtml = appliedCats.length > 0 ? `
@@ -1966,7 +1988,7 @@
 
             if (!activeRuleFilter) {
                 htmlString += `
-                    <div class="slot-card add-card-tile" onclick="addNewSlot()" title="Add new movie slot">
+                    <div class="slot-card add-card-tile" onclick="addNewSlot(event)" title="Add new movie slot">
                         <span class="add-card-plus">+</span>
                     </div>
                 `;
@@ -2697,7 +2719,7 @@
             const url = window.URL.createObjectURL(blob);
             const link = document.getElementById('downloadLink') || document.createElement('a');
             link.setAttribute('href', url);
-            link.setAttribute('download', 'hooptober_13_progress_tracker_v72.csv');
+            link.setAttribute('download', 'hooptober_13_progress_tracker_v73.csv');
             link.click();
         }
 
