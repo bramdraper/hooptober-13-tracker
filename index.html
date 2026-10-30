@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hooptober 13 Horror Challenge Tracker v78</title>
+    <title>Hooptober 13 Horror Challenge Tracker v79</title>
     <link href="https://fonts.googleapis.com/css2?family=Creepster&family=Cinzel:wght@700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -694,6 +694,10 @@
                         <input type="checkbox" id="lockByDateToggle" onchange="toggleLockByDate(this)">
                         <span>Locked by Date</span>
                     </label>
+                    <label class="lock-control-inline" title="Show only watched films. Empty slots, reordering and planned films are hidden everywhere until unchecked.">
+                        <input type="checkbox" id="hideUnwatchedToggle" onchange="toggleHideUnwatched(this)">
+                        <span>Hide Unwatched</span>
+                    </label>
                 </div>
             </div>
 
@@ -932,6 +936,21 @@
         let isLockedByDate = JSON.parse(localStorage.getItem('hoop13_locked')) || false;
         document.getElementById('lockByDateToggle').checked = isLockedByDate;
 
+        let hideUnwatched = false;
+        try { hideUnwatched = JSON.parse(localStorage.getItem('hoop13_hide_unwatched')) || false; } catch (e) {}
+        document.getElementById('hideUnwatchedToggle').checked = hideUnwatched;
+
+        // With "Hide Unwatched" on, only watched films are shown anywhere
+        function isSlotVisible(s) { return !hideUnwatched || (!!s.title && s.status === 'Watched'); }
+
+        function toggleHideUnwatched(checkbox) {
+            hideUnwatched = checkbox.checked;
+            try { localStorage.setItem('hoop13_hide_unwatched', JSON.stringify(hideUnwatched)); } catch (e) {}
+            closeQuickSearch();
+            render();
+            scheduleSync();
+        }
+
         let searchDebounce = null;
         let modalSearchDebounce = null;
         let quickSearchDebounce = null;
@@ -1150,7 +1169,7 @@
         }
 
         function moveSlot(idx, direction) {
-            if (activeGroupMode) return;
+            if (activeGroupMode || hideUnwatched) return;
             const datedCount = slots.filter(s => s.title && s.viewingDate).length;
             if (isLockedByDate && idx < datedCount) return;
             const newIdx = idx + direction;
@@ -1169,7 +1188,7 @@
         // Top: slot #1, or just below the dated films when Locked by date is on.
         // Bottom: right after the last filled slot.
         function moveSlotToEdge(idx, edge) {
-            if (activeGroupMode) return;
+            if (activeGroupMode || hideUnwatched) return;
             const s = slots[idx];
             if (!s || !s.title) return;
             const datedCount = slots.filter(x => x.title && x.viewingDate).length;
@@ -1256,7 +1275,7 @@
 
         function getSyncCode() { return lsGet('hoop13_sync_code') || ''; }
         function getSyncBase() { const v = lsGet('hoop13_sync_base'); return v ? Number(v) : null; }
-        function syncPayload() { return { slots: slots, locked: isLockedByDate }; }
+        function syncPayload() { return { slots: slots, locked: isLockedByDate, hideUnwatched: hideUnwatched }; }
         function syncPayloadText() { return JSON.stringify(syncPayload()); }
         function hasUnsyncedChanges() { return syncPayloadText() !== lsGet('hoop13_sync_snapshot'); }
 
@@ -1341,6 +1360,10 @@
             const toggle = document.getElementById('lockByDateToggle');
             if (toggle) toggle.checked = isLockedByDate;
             lsSet('hoop13_locked', JSON.stringify(isLockedByDate));
+            hideUnwatched = !!data.hideUnwatched;
+            const hideToggle = document.getElementById('hideUnwatchedToggle');
+            if (hideToggle) hideToggle.checked = hideUnwatched;
+            lsSet('hoop13_hide_unwatched', JSON.stringify(hideUnwatched));
             slots.forEach((s, idx) => s.id = idx + 1);
             lsSet('hoop13_slots', JSON.stringify(slots));
             markSynced(remote.updatedAt);
@@ -1744,7 +1767,7 @@
 
             const datedCount = slots.filter(st => st.title && st.viewingDate).length;
             const isItemLocked = isLockedByDate && realIdx < datedCount;
-            const reorderArrowsHtml = (isItemLocked || isGrouped) ? '' : `
+            const reorderArrowsHtml = (isItemLocked || isGrouped || hideUnwatched) ? '' : `
                 <div class="slot-reorder-arrows">
                     ${s.title ? `<button class="arrow-btn jump-btn" onclick="moveSlotToEdge(${realIdx}, 'top')" title="${isLockedByDate ? 'Send to top (below dated films)' : 'Send to top'}">${JUMP_UP_SVG}</button>` : ''}
                     <button class="arrow-btn" onclick="moveSlot(${realIdx}, -1)" title="Move Up">▲</button>
@@ -1758,7 +1781,7 @@
 
             return `
             <div class="slot-card ${isWatched ? 'watched' : ''}" 
-                 draggable="${!isGrouped}" 
+                 draggable="${!isGrouped && !hideUnwatched}" 
                  ondragstart="handleDragStart(event, ${realIdx})" 
                  ondragover="handleDragOver(event)" 
                  ondrop="handleDrop(event, ${realIdx})" 
@@ -1812,8 +1835,10 @@
             const decadeSet = new Set(watchedSlots.map(s => s.year ? Math.floor(s.year / 10) * 10 : null).filter(Boolean));
             const uniqueDecadesCount = decadeSet.size;
 
+            const visibleSlots = slots.filter(isSlotVisible);
+
             const decadeMoviesMap = {};
-            slots.forEach(s => {
+            visibleSlots.forEach(s => {
                 if (s.title && s.year) {
                     const dec = Math.floor(s.year / 10) * 10;
                     if (!decadeMoviesMap[dec]) decadeMoviesMap[dec] = [];
@@ -1822,7 +1847,7 @@
             });
 
             const countryMoviesMap = {};
-            slots.forEach(s => {
+            visibleSlots.forEach(s => {
                 if (s.title && s.country) {
                     const c = normalizeCountryName(s.country);
                     if (!countryMoviesMap[c]) countryMoviesMap[c] = [];
@@ -1879,7 +1904,7 @@
                             ${escapeHtml(m.title)}
                         </li>
                     `).join('')
-                    : `<li class="badge-tooltip-item empty-item">No movies planned</li>`;
+                    : `<li class="badge-tooltip-item empty-item">${hideUnwatched ? 'No movies watched' : 'No movies planned'}</li>`;
 
                 const tooltipContent = `
                     <div class="badge-tooltip ${isMultiCol ? 'multi-column' : ''}">
@@ -1931,13 +1956,13 @@
             if (activeGroupMode) {
                 htmlString += `
                     <div style="grid-column: 1 / -1; background: var(--bg-card); border: 1px solid var(--accent-red); padding: 12px 16px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                        <span style="font-size: 0.85rem; color: #fff;">Grouped by: <strong style="color: var(--accent-red);">${activeGroupMode === 'decades' ? 'decades' : 'countries'}</strong></span>
+                        <span style="font-size: 0.85rem; color: #fff;">Grouped by: <strong style="color: var(--accent-red);">${activeGroupMode === 'decades' ? 'decades' : 'countries'}</strong>${hideUnwatched ? ' <span style="color: var(--text-muted);">(watched only)</span>' : ''}</span>
                         <button class="btn-secondary" style="padding: 4px 10px; font-size: 0.75rem;" onclick="clearAllFilters()">Clear Filter</button>
                     </div>
                 `;
 
                 if (activeGroupMode === 'decades') {
-                    const presentDecades = Array.from(new Set(slots.map(s => s.title && s.year ? Math.floor(s.year / 10) * 10 : null).filter(Boolean))).sort((a,b) => a - b);
+                    const presentDecades = Array.from(new Set(visibleSlots.map(s => s.title && s.year ? Math.floor(s.year / 10) * 10 : null).filter(Boolean))).sort((a,b) => a - b);
                     
                     presentDecades.forEach(dec => {
                         const isDecadeFulfilled = decadeMoviesMap[dec] && decadeMoviesMap[dec].some(s => s.status === 'Watched');
@@ -1952,13 +1977,13 @@
                             </div>
                         `;
                         slots.forEach((s, realIdx) => {
-                            if (s.title && s.year && Math.floor(s.year / 10) * 10 === dec) {
+                            if (isSlotVisible(s) && s.title && s.year && Math.floor(s.year / 10) * 10 === dec) {
                                 htmlString += renderSingleCard(s, realIdx, true);
                             }
                         });
                     });
 
-                    const unassigned = slots.map((s, realIdx) => ({s, realIdx})).filter(obj => obj.s.title && !obj.s.year);
+                    const unassigned = slots.map((s, realIdx) => ({s, realIdx})).filter(obj => isSlotVisible(obj.s) && obj.s.title && !obj.s.year);
                     if (unassigned.length > 0) {
                         htmlString += `
                             <div class="slot-demarcation">
@@ -1972,7 +1997,7 @@
                         });
                     }
                 } else if (activeGroupMode === 'countries') {
-                    const presentCountries = Array.from(new Set(slots.map(s => s.title && s.country ? normalizeCountryName(s.country) : null).filter(Boolean))).sort();
+                    const presentCountries = Array.from(new Set(visibleSlots.map(s => s.title && s.country ? normalizeCountryName(s.country) : null).filter(Boolean))).sort();
 
                     presentCountries.forEach(c => {
                         const isCountryFulfilled = countryMoviesMap[c] && countryMoviesMap[c].some(s => s.status === 'Watched');
@@ -1987,13 +2012,13 @@
                             </div>
                         `;
                         slots.forEach((s, realIdx) => {
-                            if (s.title && s.country && normalizeCountryName(s.country) === c) {
+                            if (isSlotVisible(s) && s.title && s.country && normalizeCountryName(s.country) === c) {
                                 htmlString += renderSingleCard(s, realIdx, true);
                             }
                         });
                     });
 
-                    const unassigned = slots.map((s, realIdx) => ({s, realIdx})).filter(obj => obj.s.title && !obj.s.country);
+                    const unassigned = slots.map((s, realIdx) => ({s, realIdx})).filter(obj => isSlotVisible(obj.s) && obj.s.title && !obj.s.country);
                     if (unassigned.length > 0) {
                         htmlString += `
                             <div class="slot-demarcation">
@@ -2016,13 +2041,16 @@
                 const filterRuleObj = RULES_DEF.find(r => r.id === activeRuleFilter);
                 htmlString += `
                     <div style="grid-column: 1 / -1; background: var(--bg-card); border: 1px solid var(--accent-red); padding: 12px 16px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                        <span style="font-size: 0.85rem; color: #fff;">Filtering by rule: <strong style="color: var(--accent-red);">${filterRuleObj ? filterRuleObj.label : activeRuleFilter}</strong></span>
+                        <span style="font-size: 0.85rem; color: #fff;">Filtering by rule: <strong style="color: var(--accent-red);">${filterRuleObj ? filterRuleObj.label : activeRuleFilter}</strong>${hideUnwatched ? ' <span style="color: var(--text-muted);">(watched only)</span>' : ''}</span>
                         <button class="btn-secondary" style="padding: 4px 10px; font-size: 0.75rem;" onclick="clearAllFilters()">Clear Filter</button>
                     </div>
                 `;
             }
 
+            let shownCount = 0;
+            let extrasLabelShown = false;
             slots.forEach((s, idx) => {
+                if (!isSlotVisible(s)) return;
                 if (activeRuleFilter) {
                     const ruleObj = RULES_DEF.find(r => r.id === activeRuleFilter);
                     let matches = false;
@@ -2035,7 +2063,8 @@
                     if (!matches) return;
                 }
 
-                if (idx === 31 && !activeRuleFilter) {
+                if (idx >= 31 && !extrasLabelShown && !activeRuleFilter) {
+                    extrasLabelShown = true;
                     htmlString += `
                         <div class="slot-demarcation">
                             <div class="slot-demarcation-line"></div>
@@ -2046,9 +2075,14 @@
                 }
 
                 htmlString += renderSingleCard(s, idx, false);
+                shownCount++;
             });
 
-            if (!activeRuleFilter) {
+            if (hideUnwatched && shownCount === 0) {
+                htmlString += `<div style="grid-column: 1 / -1; text-align: center; color: var(--text-muted); font-size: 0.9rem; padding: 32px 12px;">${activeRuleFilter ? 'No watched films match this category yet.' : 'No watched films yet. Uncheck “Hide Unwatched” to see your full list.'}</div>`;
+            }
+
+            if (!activeRuleFilter && !hideUnwatched) {
                 htmlString += `
                     <div class="slot-card add-card-tile" onclick="addNewSlot(event)" title="Add new movie slot">
                         <span class="add-card-plus">+</span>
@@ -2142,7 +2176,7 @@
         }
 
         function handleDragStart(e, idx) {
-            if (activeGroupMode) return;
+            if (activeGroupMode || hideUnwatched) { e.preventDefault(); return; }
             const datedCount = slots.filter(s => s.title && s.viewingDate).length;
             if (isLockedByDate && idx < datedCount) {
                 e.preventDefault();
@@ -2160,7 +2194,7 @@
         }
 
         function handleDrop(e, targetIndex) {
-            if (activeGroupMode) return;
+            if (activeGroupMode || hideUnwatched) return;
             e.preventDefault();
             if (draggedIndex === null || draggedIndex === targetIndex) return;
             const datedCount = slots.filter(s => s.title && s.viewingDate).length;
@@ -2781,7 +2815,7 @@
             const url = window.URL.createObjectURL(blob);
             const link = document.getElementById('downloadLink') || document.createElement('a');
             link.setAttribute('href', url);
-            link.setAttribute('download', 'hooptober_13_progress_tracker_v78.csv');
+            link.setAttribute('download', 'hooptober_13_progress_tracker_v79.csv');
             link.click();
         }
 
